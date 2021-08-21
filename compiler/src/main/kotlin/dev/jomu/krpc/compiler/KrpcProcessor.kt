@@ -43,7 +43,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                 .addParameter("service", service.declaration.asClassName())
                 .addParameter("registrar", MethodRegistrar::class)
                 .addParameter(ParameterSpec.builder("interceptor", UnaryServerInterceptor::class.asTypeName().copy(nullable = true)).defaultValue("null").build())
-                .addCode("registrar.register(service, %M, interceptor);", MemberName(packageName, serviceDescriptor.name))
+                .addCode("registrar.%M(service, %M, interceptor);", MemberName("dev.jomu.krpc.runtime", "registerService"), MemberName(packageName, serviceDescriptor.name))
                 .build()
 
             val client = generateClient(service, specs)
@@ -75,7 +75,9 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
 
         requestType.addModifiers(KModifier.PRIVATE)
         val constructor = FunSpec.constructorBuilder()
-        endpoint.declaration.parameters.forEach { parameter ->
+        endpoint.declaration.parameters
+            .filter { !it.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }
+            .forEach { parameter ->
             val name = parameter.name!!.asString()
             val type = parameter.type.resolve().asTypeName()
 
@@ -157,27 +159,43 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
     }
 
     fun generateRequestHandlers(service: Service, endpoint: Endpoint, request: TypeSpec, response: TypeSpec, responseError: TypeSpec): FunSpec {
+        val requestTypeName = ClassName(service.declaration.packageName.asString(), request.name!!)
+        val responseTypeName = ClassName(service.declaration.packageName.asString(), response.name!!)
         val funSpec = FunSpec.builder("handle${service.name}${endpoint.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }}")
             .addModifiers(KModifier.SUSPEND, KModifier.PRIVATE)
             .addParameter("service", service.declaration.asClassName())
-            .addParameter("messageStream", MessageStream::class)
+            .addParameter("message", KrpcMessage::class.asTypeName().parameterizedBy(requestTypeName))
             .addParameter("interceptor", UnaryServerInterceptor::class.asTypeName().copy(nullable = true))
-            .returns(KrpcMessage::class.asTypeName().parameterizedBy(STAR))
+            .returns(KrpcMessage::class.asTypeName().parameterizedBy(responseTypeName))
 
+        val parameterNames = endpoint.declaration.parameters.mapNotNull { it.name?.asString() }
+
+        val metadataParameters = endpoint.declaration.parameters.mapIndexed { index, parameter -> index to parameter }
+            .filter { it.second.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }
+
+        if (metadataParameters.size > 1) {
+            logger.error("more than one metadata parameter", endpoint.declaration)
+            error("TODO clean this up")
+        }
+
+        val metadataIndex = metadataParameters.firstOrNull()?.first ?: -1
         funSpec.apply {
-            addStatement("val request = messageStream.read(%N.serializer())", request)
-            val parameterNames = endpoint.declaration.parameters.mapNotNull { it.name?.asString() }
-            beginControlFlow("val response = interceptor?.intercept(%T(%S), %T(request, mapOf())) {", MethodInfo::class, "${service.declaration.qualifiedName?.asString()}/${endpoint.name}", KrpcRequest::class)
-            val wrappedArguments = parameterNames.joinToString(separator = ", ") { "it.value.$it" }
+            addStatement("val request = message.value", request)
+            beginControlFlow("val response = try {")
+            beginControlFlow("interceptor?.intercept(%T(%S), message) {", MethodInfo::class, "${service.declaration.qualifiedName?.asString()}/${endpoint.name}")
+            val wrappedArguments = parameterNames.mapIndexed { index, name -> index to name }.joinToString(separator = ", ") { if (it.first == metadataIndex) "message.metadata" else "it.value.${it.second}" }
             addStatement("service.${endpoint.name}($wrappedArguments)")
             endControlFlow()
-            val arguments = parameterNames.joinToString(separator = ", ") { "request.$it" }
+            val arguments = parameterNames.mapIndexed { index, name -> index to name }.joinToString(separator = ", ") { if (it.first == metadataIndex) "message.metadata" else "request.${it.second}" }
             addStatement("?: service.${endpoint.name}($arguments)")
+            nextControlFlow("catch (e: Throwable)")
+            addStatement("Error(%T.INTERNAL, e.message ?: \"<internal error>\")", ErrorCode::class)
+            endControlFlow()
             beginControlFlow("val result = when (response) {")
             addStatement("is %T -> %N(success = response.result)", Success::class, response)
-            addStatement("is %T -> %N(error = %T(response.code, response.message, response.details,))", Error::class, response, ClassName(service.declaration.packageName.asString(), response.name!!).nestedClass(responseError.name!!))
+            addStatement("is %T -> %N(error = %T(response.code, response.message, response.details,))", Error::class, response, responseTypeName.nestedClass(responseError.name!!))
             endControlFlow()
-            addStatement("return %T(result, %N.serializer(), response.metadata)", KrpcMessage::class, response)
+            addStatement("return %T(result, response.metadata)", KrpcMessage::class)
         }
 
         service.declaration.containingFile?.let { funSpec.addOriginatingKSFile(it) }
@@ -194,10 +212,12 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                 addStatement("methods = listOf(")
                 withIndent {
                     specs.forEach { endpoint ->
-                        addStatement("%T(", MethodDescriptor::class)
+                        addStatement("%T(", MethodDescriptorImpl::class)
                         withIndent {
                             addStatement("%S,", endpoint.endpoint.name)
                             addStatement("handler = %L,", MemberName(service.declaration.packageName.asString(), endpoint.handler.name).reference())
+                            addStatement("requestDeserializer = %N.serializer(),", endpoint.request)
+                            addStatement("responseSerializer = %N.serializer(),", endpoint.response)
                         }
                         addStatement("),")
                     }
@@ -220,36 +240,63 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         return TypeSpec.classBuilder("${service.name}Client").apply {
             addSuperinterface(service.declaration.asClassName())
 
+            val interceptorType = UnaryClientInterceptor::class.asTypeName().copy(nullable = true)
             primaryConstructor(FunSpec.constructorBuilder()
                 .addParameter("client", KrpcClient::class)
                 .addParameter("baseUrl", String::class)
+                .addParameter("serializer", Serializer::class)
+                .addParameter(ParameterSpec.builder("interceptor", interceptorType).defaultValue("null").build())
                 .build())
 
             addProperty(PropertySpec.builder("client", KrpcClient::class, KModifier.PRIVATE).initializer("client").build())
             addProperty(PropertySpec.builder("baseUrl", String::class, KModifier.PRIVATE).initializer("baseUrl").build())
+            addProperty(PropertySpec.builder("serializer", Serializer::class, KModifier.PRIVATE).initializer("serializer").build())
+            addProperty(PropertySpec.builder("interceptor", interceptorType, KModifier.PRIVATE).initializer("interceptor").build())
 
             specs.forEach { endpoint ->
                 addFunction(
                     FunSpec.builder(endpoint.endpoint.name).apply {
                         addModifiers(KModifier.SUSPEND, KModifier.OVERRIDE)
 
-                        returns(endpoint.endpoint.declaration.returnType?.resolve()?.asTypeName()!!)
+                        val returnType = endpoint.endpoint.declaration.returnType?.resolve()?.asTypeName()!!
+                        returns(returnType)
 
                         endpoint.endpoint.declaration.parameters.forEach { parameter ->
                             addParameter(parameter.name!!.asString(), parameter.type.resolve().asTypeName())
                         }
 
+                        val metadataParameters = endpoint.endpoint.declaration.parameters.mapIndexed { index, parameter -> index to parameter }
+                            .filter { it.second.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }
+
+                        val metadataParameterName = metadataParameters.firstOrNull()?.second?.name?.asString()
+                        val path = "${service.declaration.qualifiedName?.asString()}/${endpoint.endpoint.name}"
+
+                        val pkg = service.declaration.packageName.asString()
+                        val returnTypeClassName = ClassName(pkg, endpoint.request.name!!)
                         addCode(buildCodeBlock {
-                            addStatement("val url = %P", "\${baseUrl}/${service.declaration.qualifiedName?.asString()}/${endpoint.endpoint.name}")
-                            val parameters = endpoint.endpoint.declaration.parameters.mapNotNull { it.name?.asString() }.joinToString(", ")
+                            addStatement("val url = %P", "\${baseUrl}/$path")
+                            val parameters = endpoint.endpoint.declaration.parameters.filter { !it.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }.mapNotNull { it.name?.asString() }.joinToString(", ")
                             addStatement("val krpcRequest = %N($parameters)", endpoint.request)
-                            addStatement("val message = %T(krpcRequest, %N.serializer())", KrpcMessage::class, endpoint.request)
-                            addStatement("val messageStream = client.executeUnaryCall(url, message)")
-                            addStatement("val response = messageStream.read(%N.serializer())", endpoint.response)
-                            beginControlFlow("return if (response.success != null) {")
-                            addStatement("%T(response.success)", Success::class)
+                            addStatement("")
+                            beginControlFlow("val execute: %T = { request ->", LambdaTypeName.get(null, listOf(ParameterSpec.Companion.unnamed(KrpcRequest::class.asTypeName().parameterizedBy(returnTypeClassName))), returnType).copy(suspending = true))
+                            addStatement("val body = serializer.encode(%N.serializer(), request.value)", endpoint.request)
+                            addStatement("val message = %T(body, request.metadata)", KrpcMessage::class)
+                            addStatement("")
+                            addStatement("val result = client.executeUnaryCall(url, message)")
+                            addStatement("")
+                            addStatement("val response = serializer.decode(%N.serializer(), result.value)", endpoint.response)
+                            addStatement("")
+                            beginControlFlow("if (response.success != null) {")
+                            addStatement("%T(response.success, result.metadata)", Success::class)
                             nextControlFlow("else")
-                            addStatement("%T(response.error!!.code, response.error.message, response.error.details)", Error::class)
+                            addStatement("%T(response.error!!.code, response.error.message, response.error.details, result.metadata)", Error::class)
+                            endControlFlow()
+                            endControlFlow()
+                            beginControlFlow("return try {")
+                            addStatement("val request = %T(krpcRequest, ${metadataParameterName ?: "%M()"})", KrpcRequest::class, *(if (metadataParameterName == null) listOf(MemberName("dev.jomu.krpc.runtime", "emptyMetadata")) else emptyList()).toTypedArray())
+                            addStatement("interceptor?.intercept(MethodInfo(%S), request, execute) ?: execute(request)", path)
+                            nextControlFlow("catch (e: Throwable) ")
+                            addStatement("Error(%T.INTERNAL, e.message ?: \"<internal error>\")", ErrorCode::class)
                             endControlFlow()
                         })
                     }

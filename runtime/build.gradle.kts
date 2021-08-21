@@ -33,6 +33,7 @@ kotlin {
                 api("io.ktor:ktor-server-core:1.6.1")
                 api("io.ktor:ktor-server-netty:1.6.1")
                 api("io.ktor:ktor-client-core:1.6.1")
+                api("io.ktor:ktor-utils:1.6.1")
                 api("io.ktor:ktor-client-okhttp:1.6.1")
                 implementation("ch.qos.logback:logback-classic:1.2.3")
                 implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2")

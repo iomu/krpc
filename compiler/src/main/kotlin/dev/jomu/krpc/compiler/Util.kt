@@ -19,6 +19,7 @@ import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
+import kotlin.reflect.KClass
 import kotlin.text.Charsets.UTF_8
 
 
@@ -167,4 +168,14 @@ internal fun FileSpec.writeTo(codeGenerator: CodeGenerator) {
     // Don't use writeTo(file) because that tries to handle directories under the hood
     OutputStreamWriter(file, UTF_8)
         .use(::writeTo)
+}
+
+fun KSTypeReference.isClass(kClass: KClass<*>): Boolean {
+    val type = resolve()
+    val declaration = type.declaration
+    if (declaration !is KSClassDeclaration) {
+        return false
+    }
+
+   return declaration.qualifiedName?.asString() == kClass.qualifiedName
 }

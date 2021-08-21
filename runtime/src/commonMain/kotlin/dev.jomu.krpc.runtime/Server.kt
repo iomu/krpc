@@ -1,30 +1,55 @@
 package dev.jomu.krpc.runtime
 
 import kotlinx.serialization.DeserializationStrategy
-import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.json.Json
 
-interface MessageStream {
-    suspend fun <T> read(deserializer: DeserializationStrategy<T>): T
+data class KrpcMessage<T>(val value: T, val metadata: Metadata = emptyMetadata())
+
+typealias MethodHandler<Service, Req, Resp> = suspend (service: Service, request: KrpcMessage<Req>, interceptor: UnaryServerInterceptor?) -> KrpcMessage<Resp>
+
+interface MethodDescriptor<Service, Req, Resp> {
+    val name: String
+    val handler: MethodHandler<Service, Req, Resp>
+    fun readRequest(encoded: String): Req
+    fun encodeResponse(message: Resp): String
 }
 
-data class KrpcMessage<T>(val value: T, val serializer: KSerializer<T>, val metadata: Metadata = mapOf())
+data class MethodDescriptorImpl<Service, Req, Resp>(
+    override val name: String,
+    override val handler: MethodHandler<Service, Req, Resp>,
+    val requestDeserializer: DeserializationStrategy<Req>,
+    val responseSerializer: SerializationStrategy<Resp>
+) : MethodDescriptor<Service, Req, Resp> {
+    override fun readRequest(encoded: String): Req {
+        return Json.decodeFromString(requestDeserializer, encoded)
+    }
 
-typealias MethodHandler<Service> = suspend (service: Service, readRequest: MessageStream, interceptor: UnaryServerInterceptor?) -> KrpcMessage<*>
+    override fun encodeResponse(message: Resp): String {
+        return Json.encodeToString(responseSerializer, message)
+    }
+}
 
-data class MethodDescriptor<Service>(internal val name: String, val handler: MethodHandler<Service>)
+data class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T, *, *>>)
 
-data class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T>>)
-
-fun <T> ServiceDescriptor<T>.path(method: MethodDescriptor<T>) = "$name/${method.name}"
+fun <T> ServiceDescriptor<T>.path(method: MethodDescriptor<T, *, *>) = "$name/${method.name}"
 
 interface MethodRegistrar {
-    fun <T> register(service: T, descriptor: ServiceDescriptor<T>, interceptor: UnaryServerInterceptor?)
+    fun <T, Req, Resp> register(method: MethodDescriptor<T, Req, Resp>, service: T, path: String, interceptor: UnaryServerInterceptor?)
+}
+
+fun <T> MethodRegistrar.registerService(service: T, descriptor: ServiceDescriptor<T>, interceptor: UnaryServerInterceptor?) {
+    descriptor.methods.forEach { register(it, service, descriptor.path(it), interceptor) }
 }
 
 class MethodInfo(val name: String)
 
-data class KrpcRequest<T>(val value: T, val metadata: Metadata)
+typealias KrpcRequest<T> = KrpcMessage<T>
 
 interface UnaryServerInterceptor {
-    suspend fun <Req, Resp, Err> intercept(info: MethodInfo, request: KrpcRequest<Req>, next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>): Response<Resp, Err>
+    suspend fun <Req, Resp, Err> intercept(
+        info: MethodInfo,
+        request: KrpcRequest<Req>,
+        next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>
+    ): Response<Resp, Err>
 }

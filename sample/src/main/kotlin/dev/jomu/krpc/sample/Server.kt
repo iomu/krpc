@@ -1,11 +1,10 @@
 package dev.jomu.krpc.sample
 
 import dev.jomu.krpc.runtime.*
-import io.ktor.application.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
-import kotlin.Error
+import java.util.*
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
@@ -16,8 +15,8 @@ fun main() {
 }
 
 object Implementation : TestService {
-    override suspend fun hello(name: String): Response<String, Unit> {
-        return Error(ErrorCode.INTERNAL, "we got an error chief", Unit)
+    override suspend fun hello(name: String, metadata: Metadata): Response<String, Unit> {
+        return Success("Hello, $name!", metadata = metadata)
     }
 
     override suspend fun second(name: String, number: Int): Response<String, CustomError> {
@@ -29,16 +28,16 @@ object Implementation : TestService {
     }
 }
 
-object PrintInterceptor : UnaryServerInterceptor {
+object PrintInterceptor : UnaryServerInterceptor, UnaryClientInterceptor {
     override suspend fun <Req, Resp, Err> intercept(
         info: MethodInfo,
         request: KrpcRequest<Req>,
         next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>
     ): Response<Resp, Err> {
-        println("Request: ${request.value}")
-        return next(request).also {
+        println("Request: $request")
+        val response = next(request).also {
             println("Response: $it")
         }
+        return response.withMetadata(Metadata(response.metadata.mapValues { (_, value) -> value.uppercase(Locale.getDefault()) }))
     }
-
 }
