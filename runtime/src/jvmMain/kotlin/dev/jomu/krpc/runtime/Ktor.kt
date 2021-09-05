@@ -51,12 +51,13 @@ class KtorClient(private val client: HttpClient) : KrpcClient {
 }
 
 object JsonSerializer : Serializer {
+    private val json = Json { ignoreUnknownKeys = true }
     override fun <T> encode(serializer: SerializationStrategy<T>, value: T): String {
-        return Json.encodeToString(serializer, value)
+        return json.encodeToString(serializer, value)
     }
 
     override fun <T> decode(deserializer: DeserializationStrategy<T>, encoded: String): T {
-        return Json.decodeFromString(deserializer, encoded)
+        return json.decodeFromString(deserializer, encoded)
     }
 }
 

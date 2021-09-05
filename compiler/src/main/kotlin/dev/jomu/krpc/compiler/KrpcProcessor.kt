@@ -16,7 +16,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
             .filter { it.classKind == ClassKind.INTERFACE }
 
         val services = serviceDeclarations.map { decl ->
-            val endpoints = decl.getDeclaredFunctions().map { Endpoint(it) }
+            val endpoints = decl.getAllFunctions().filter { it.modifiers.contains(Modifier.SUSPEND) }.map { Endpoint(it) }
             Service(decl, endpoints)
         }
 
@@ -75,8 +75,9 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
 
         requestType.addModifiers(KModifier.PRIVATE)
         val constructor = FunSpec.constructorBuilder()
+        endpoint.declaration.annotations
         endpoint.declaration.parameters
-            .filter { !it.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }
+            .filter { !it.type.isClass(Metadata::class) }
             .forEach { parameter ->
             val name = parameter.name!!.asString()
             val type = parameter.type.resolve().asTypeName()
@@ -171,7 +172,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         val parameterNames = endpoint.declaration.parameters.mapNotNull { it.name?.asString() }
 
         val metadataParameters = endpoint.declaration.parameters.mapIndexed { index, parameter -> index to parameter }
-            .filter { it.second.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }
+            .filter { it.second.type.isClass(Metadata::class) }
 
         if (metadataParameters.size > 1) {
             logger.error("more than one metadata parameter", endpoint.declaration)
@@ -266,7 +267,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                         }
 
                         val metadataParameters = endpoint.endpoint.declaration.parameters.mapIndexed { index, parameter -> index to parameter }
-                            .filter { it.second.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }
+                            .filter { it.second.type.isClass(Metadata::class) }
 
                         val metadataParameterName = metadataParameters.firstOrNull()?.second?.name?.asString()
                         val path = "${service.declaration.qualifiedName?.asString()}/${endpoint.endpoint.name}"
@@ -275,7 +276,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                         val returnTypeClassName = ClassName(pkg, endpoint.request.name!!)
                         addCode(buildCodeBlock {
                             addStatement("val url = %P", "\${baseUrl}/$path")
-                            val parameters = endpoint.endpoint.declaration.parameters.filter { !it.type.isClass(dev.jomu.krpc.runtime.Metadata::class) }.mapNotNull { it.name?.asString() }.joinToString(", ")
+                            val parameters = endpoint.endpoint.declaration.parameters.filter { !it.type.isClass(Metadata::class) }.mapNotNull { it.name?.asString() }.joinToString(", ")
                             addStatement("val krpcRequest = %N($parameters)", endpoint.request)
                             addStatement("")
                             beginControlFlow("val execute: %T = { request ->", LambdaTypeName.get(null, listOf(ParameterSpec.Companion.unnamed(KrpcRequest::class.asTypeName().parameterizedBy(returnTypeClassName))), returnType).copy(suspending = true))

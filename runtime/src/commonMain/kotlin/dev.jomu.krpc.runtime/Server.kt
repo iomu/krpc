@@ -21,12 +21,13 @@ data class MethodDescriptorImpl<Service, Req, Resp>(
     val requestDeserializer: DeserializationStrategy<Req>,
     val responseSerializer: SerializationStrategy<Resp>
 ) : MethodDescriptor<Service, Req, Resp> {
+    private val json = Json { ignoreUnknownKeys = true }
     override fun readRequest(encoded: String): Req {
-        return Json.decodeFromString(requestDeserializer, encoded)
+        return json.decodeFromString(requestDeserializer, encoded)
     }
 
     override fun encodeResponse(message: Resp): String {
-        return Json.encodeToString(responseSerializer, message)
+        return json.encodeToString(responseSerializer, message)
     }
 }
 

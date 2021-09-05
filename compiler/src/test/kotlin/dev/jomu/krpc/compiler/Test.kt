@@ -20,8 +20,11 @@ internal class Test {
         val source = """
             import dev.jomu.krpc.runtime.*
             
+            interface Base<T> {
+                suspend fun test(x: T): Response<T, Unit>
+            }
             @KrpcService
-            interface TestService {
+            interface TestService : Base<Int> {
                 suspend fun hello(name: String): Response<String, Unit>
             }
 

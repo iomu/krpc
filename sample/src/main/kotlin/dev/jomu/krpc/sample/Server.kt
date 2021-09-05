@@ -26,6 +26,15 @@ object Implementation : TestService {
     override suspend fun third(name: String, number: Int, more: Float): Response<List<String>, CustomError> {
         return Success(listOf(name, "$number"))
     }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    override suspend fun generic(value: String, count: Int): Response<List<String>, Unit> {
+        return Success(buildList {
+            for (i in 1..count) {
+                add(value)
+            }
+        })
+    }
 }
 
 object PrintInterceptor : UnaryServerInterceptor, UnaryClientInterceptor {
