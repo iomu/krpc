@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="client-ktor-js-0.1.0">
+    <output-path>$PROJECT_DIR$/integration/client-ktor/build/libs</output-path>
+    <root id="archive" name="client-ktor-js-0.1.0.jar">
+      <element id="module-output" name="krpc.integration.client-ktor.jsMain" />
+    </root>
+  </artifact>
+</component>

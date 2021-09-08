@@ -9,3 +9,6 @@ pluginManagement {
 }
 include("sample")
 include("runtime")
+include(":integration:client-ktor")
+include(":integration:client-okhttp")
+include(":integration:server-ktor")

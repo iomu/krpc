@@ -2,6 +2,14 @@
 <project version="4">
   <component name="CompilerConfiguration">
     <bytecodeTargetLevel target="1.8">
+      <module name="krpc.integration.ktor-client.commonMain" target="1.8" />
+      <module name="krpc.integration.ktor-client.commonTest" target="1.8" />
+      <module name="krpc.integration.ktor-client.jvmMain" target="1.8" />
+      <module name="krpc.integration.ktor-client.jvmTest" target="1.8" />
+      <module name="krpc.ktor-client.commonMain" target="1.8" />
+      <module name="krpc.ktor-client.commonTest" target="1.8" />
+      <module name="krpc.ktor-client.jvmMain" target="1.8" />
+      <module name="krpc.ktor-client.jvmTest" target="1.8" />
       <module name="krpc.sample.commonMain" target="1.8" />
       <module name="krpc.sample.commonTest" target="1.8" />
       <module name="krpc.sample.jvmMain" target="1.8" />

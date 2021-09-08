@@ -15,11 +15,12 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
     implementation(project(":runtime"))
+    implementation(project(":integration:server-ktor"))
+    implementation(project(":integration:client-ktor"))
     ksp(project(":compiler"))
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2")
-    implementation("io.ktor:ktor-server-core:1.6.1")
-    implementation("io.ktor:ktor-server-netty:1.6.1")
-    implementation("ch.qos.logback:logback-classic:1.2.3")
+    implementation("io.ktor:ktor-client-okhttp:1.6.1")
+
 }
 
 kotlin {
