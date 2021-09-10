@@ -1,7 +1,7 @@
 plugins {
-    id("com.google.devtools.ksp") version "1.5.21-1.0.0-beta05"
+    alias(libs.plugins.ksp)
     kotlin("jvm")
-    kotlin("plugin.serialization") version "1.5.21"
+    alias(libs.plugins.kotlin.serialization)
 }
 
 group = "dev.jomu.krpc"
@@ -13,13 +13,13 @@ repositories {
 }
 
 dependencies {
-    implementation(kotlin("stdlib"))
+    implementation(libs.kotlin.stdlib)
     implementation(project(":runtime"))
     implementation(project(":integration:server-ktor"))
     implementation(project(":integration:client-ktor"))
     ksp(project(":compiler"))
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2")
-    implementation("io.ktor:ktor-client-okhttp:1.6.1")
+    implementation(libs.ktor.server.netty)
+    implementation(libs.ktor.client.okhttp)
 
 }
 

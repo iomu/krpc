@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.jomu.krpc"
-version = "0.1.0"
+version = "0.1.1"
 
 repositories {
     mavenCentral()
@@ -20,12 +20,12 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation(kotlin("stdlib-common"))
+                implementation(libs.kotlin.stdlib)
                 implementation(project(":runtime"))
-                implementation("io.ktor:ktor-client-core:1.6.1")
-                api("io.ktor:ktor-client-core:1.6.1")
-                api("io.ktor:ktor-utils:1.6.1")
-                api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2")
+                implementation(libs.ktor.client.core)
+                api(libs.ktor.client.core)
+                api(libs.ktor.utils)
+                api(libs.kotlin.serialization.json)
             }
         }
         val commonTest by getting {

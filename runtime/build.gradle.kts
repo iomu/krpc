@@ -8,7 +8,7 @@ repositories {
 }
 
 group = "dev.jomu.krpc"
-version = "0.1.0"
+version = "0.1.1"
 
 kotlin {
     jvm()
@@ -23,9 +23,9 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation(kotlin("stdlib-common"))
-                implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2")
-                api("org.jetbrains.kotlinx:kotlinx-serialization-json:1.2.2")
+                implementation(libs.kotlin.stdlib)
+                implementation(libs.kotlin.serialization.json)
+                api(libs.kotlin.serialization.json)
             }
         }
         val commonTest by getting {

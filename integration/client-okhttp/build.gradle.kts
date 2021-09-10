@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.jomu.krpc"
-version = "0.1.0"
+version = "0.1.1"
 
 repositories {
     mavenCentral()
@@ -14,8 +14,8 @@ repositories {
 dependencies {
     implementation(kotlin("stdlib"))
     api(project(":runtime"))
-    api("com.squareup.okhttp3:okhttp:4.9.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.2")
+    api(libs.okhttp.core)
+    implementation(libs.kotlin.coroutines.core)
 }
 
 publishing {

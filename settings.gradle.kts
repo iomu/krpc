@@ -7,6 +7,9 @@ pluginManagement {
         google()
     }
 }
+
+enableFeaturePreview("VERSION_CATALOGS")
+
 include("sample")
 include("runtime")
 include(":integration:client-ktor")

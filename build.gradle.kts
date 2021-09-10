@@ -1,10 +1,6 @@
-plugins {
-    kotlin("multiplatform") version "1.5.21" apply false
-}
-
 buildscript {
     dependencies {
-        classpath(kotlin("gradle-plugin", version = "1.5.21"))
+        classpath(libs.kotlin.gradle)
     }
 
     repositories {
@@ -15,7 +11,7 @@ buildscript {
 }
 
 group = "dev.jomu.krpc"
-version = "0.1.0"
+version = "0.1.1"
 
 repositories {
     mavenCentral()
