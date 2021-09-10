@@ -14,7 +14,7 @@ class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcClient {
     override suspend fun executeUnaryCall(url: String, message: KrpcMessage<String>): KrpcMessage<String> {
         val headers = Headers.Builder().apply {
             message.metadata.forEach { (key, value) ->
-                add(key, value)
+                add("krpc-$key", value)
             }
         }.build()
         val request = Request.Builder()
