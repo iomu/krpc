@@ -8,40 +8,83 @@ data class KrpcMessage<T>(val value: T, val metadata: Metadata = emptyMetadata()
 
 typealias MethodHandler<Service, Req, Resp> = suspend (service: Service, request: KrpcMessage<Req>, interceptor: UnaryServerInterceptor?) -> KrpcMessage<Resp>
 
-interface MethodDescriptor<Service, Req, Resp> {
-    val name: String
-    val handler: MethodHandler<Service, Req, Resp>
-    fun readRequest(encoded: String): Req
-    fun encodeResponse(message: Resp): String
+class MethodDescriptor<Service, Req, Resp>(
+    val name: String,
+    val handler: MethodHandler<Service, Req, Resp>,
+    val requestDeserializer: DeserializationStrategy<Req>,
+    val responseSerializer: SerializationStrategy<Resp>,
+)
+
+interface Call {
+    suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T
+    suspend fun <T> respond(json: Json, serializer: SerializationStrategy<T>, response: T, metadata: Metadata)
+    val metadata: Metadata
 }
 
-data class MethodDescriptorImpl<Service, Req, Resp>(
-    override val name: String,
-    override val handler: MethodHandler<Service, Req, Resp>,
-    val requestDeserializer: DeserializationStrategy<Req>,
-    val responseSerializer: SerializationStrategy<Resp>
-) : MethodDescriptor<Service, Req, Resp> {
-    private val json = Json { ignoreUnknownKeys = true }
-    override fun readRequest(encoded: String): Req {
-        return json.decodeFromString(requestDeserializer, encoded)
+interface KrpcServer {
+    suspend fun handleRequest(path: String, call: Call)
+}
+
+internal class RegisteredService<T>(val descriptor: ServiceDescriptor<T>, val implementation: T)
+
+private class ImplementationWithMethod<T>(val implementation: T, val method: MethodDescriptor<T, *, *>)
+
+class KrpcServerBuilder {
+    internal val interceptors: MutableList<UnaryServerInterceptor> = mutableListOf()
+    internal val services: MutableList<RegisteredService<*>> = mutableListOf()
+
+    fun addInterceptor(interceptor: UnaryServerInterceptor) {
+        interceptors.add(interceptor)
     }
 
-    override fun encodeResponse(message: Resp): String {
-        return json.encodeToString(responseSerializer, message)
+    fun <T> addService(descriptor: ServiceDescriptor<T>, implementation: T) {
+        services.add(RegisteredService(descriptor, implementation))
     }
+}
+
+fun buildKrpcServer(block: KrpcServerBuilder.() -> Unit): KrpcServer {
+    val builder = KrpcServerBuilder()
+    builder.block()
+    return RealKrpcServer(
+        builder.services,
+        Json { ignoreUnknownKeys = true },
+        builder.interceptors
+    )
+}
+
+private class RealKrpcServer(
+    services: List<RegisteredService<*>>,
+    private val json: Json,
+    interceptors: List<UnaryServerInterceptor> = emptyList(),
+) : KrpcServer {
+    private val interceptor = if (interceptors.isEmpty()) null else ChainUnaryServerInterceptor(interceptors)
+    private val handlers = services.map { rs -> rs.toHandlerMap() }.reduce { a, b -> a + b }
+
+    override suspend fun handleRequest(path: String, call: Call) {
+        val handler = handlers[path.trimStart('/')] ?: return // TODO return NotFound
+        handler.handle(call)
+    }
+
+    private suspend fun <T> ImplementationWithMethod<T>.handle(call: Call) {
+        method.handle(implementation, call)
+    }
+
+    private suspend fun <Service, Req, Resp> MethodDescriptor<Service, Req, Resp>.handle(implementation: Service, call: Call) {
+        val request = call.readRequest(json, requestDeserializer)
+        val response = handler(implementation, KrpcMessage(request, call.metadata), interceptor)
+        call.respond(json, responseSerializer, response.value, response.metadata)
+    }
+}
+
+private fun <T> RegisteredService<T>.toHandlerMap(): Map<String, ImplementationWithMethod<T>> {
+    return descriptor.methods.associateBy {
+        descriptor.path(it)
+    }.mapValues { ImplementationWithMethod(implementation, it.value) }
 }
 
 data class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T, *, *>>)
 
 fun <T> ServiceDescriptor<T>.path(method: MethodDescriptor<T, *, *>) = "$name/${method.name}"
-
-interface MethodRegistrar {
-    fun <T, Req, Resp> register(method: MethodDescriptor<T, Req, Resp>, service: T, path: String, interceptor: UnaryServerInterceptor?)
-}
-
-fun <T> MethodRegistrar.registerService(service: T, descriptor: ServiceDescriptor<T>, interceptor: UnaryServerInterceptor?) {
-    descriptor.methods.forEach { register(it, service, descriptor.path(it), interceptor) }
-}
 
 class MethodInfo(val name: String)
 
@@ -53,4 +96,20 @@ interface UnaryServerInterceptor {
         request: KrpcRequest<Req>,
         next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>
     ): Response<Resp, Err>
+}
+
+class ChainUnaryServerInterceptor(private val interceptors: List<UnaryServerInterceptor>) : UnaryServerInterceptor {
+    override suspend fun <Req, Resp, Err> intercept(
+        info: MethodInfo,
+        request: KrpcRequest<Req>,
+        next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>
+    ): Response<Resp, Err> {
+        val chain = interceptors.foldRight(next) { interceptor, acc ->
+            { request ->
+                interceptor.intercept(info, request, acc)
+            }
+        }
+
+        return chain(request)
+    }
 }

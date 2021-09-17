@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.jomu.krpc"
-version = "0.1.1"
+version = "0.1.2"
 
 repositories {
     mavenCentral()
@@ -15,6 +15,7 @@ dependencies {
     implementation(kotlin("stdlib-common"))
     implementation(project(":runtime"))
     api(libs.ktor.server.core)
+    implementation(libs.ktor.server.core)
     api(libs.ktor.utils)
     api(libs.kotlin.serialization.json)
     implementation(libs.logback)

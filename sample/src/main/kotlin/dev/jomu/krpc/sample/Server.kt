@@ -7,9 +7,13 @@ import io.ktor.server.netty.*
 import java.util.*
 
 fun main() {
+    val server = buildKrpcServer {
+        addService(testServiceDescriptor, Implementation)
+        addInterceptor(PrintInterceptor)
+    }
     embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
         routing {
-            registerTestService(Implementation, asRegistrar(), PrintInterceptor)
+            registerServer(server)
         }
     }.start(wait = true)
 }

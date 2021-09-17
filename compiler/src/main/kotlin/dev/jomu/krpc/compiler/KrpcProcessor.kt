@@ -1,6 +1,5 @@
 package dev.jomu.krpc.compiler
 
-import com.google.devtools.ksp.getDeclaredFunctions
 import com.google.devtools.ksp.processing.*
 import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
@@ -39,13 +38,6 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
 
             val serviceDescriptor = generateServiceDescriptor(service, specs)
 
-            val registerFunction = FunSpec.builder("register${service.name}")
-                .addParameter("service", service.declaration.asClassName())
-                .addParameter("registrar", MethodRegistrar::class)
-                .addParameter(ParameterSpec.builder("interceptor", UnaryServerInterceptor::class.asTypeName().copy(nullable = true)).defaultValue("null").build())
-                .addCode("registrar.%M(service, %M, interceptor);", MemberName("dev.jomu.krpc.runtime", "registerService"), MemberName(packageName, serviceDescriptor.name))
-                .build()
-
             val client = generateClient(service, specs)
 
             specs.forEach {
@@ -54,7 +46,6 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                 fileBuilder.addFunction(it.handler)
             }
             fileBuilder.addProperty(serviceDescriptor)
-            fileBuilder.addFunction(registerFunction)
             fileBuilder.addType(client)
 
             return@map fileBuilder.build()
@@ -213,7 +204,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                 addStatement("methods = listOf(")
                 withIndent {
                     specs.forEach { endpoint ->
-                        addStatement("%T(", MethodDescriptorImpl::class)
+                        addStatement("%T(", MethodDescriptor::class)
                         withIndent {
                             addStatement("%S,", endpoint.endpoint.name)
                             addStatement("handler = %L,", MemberName(service.declaration.packageName.asString(), endpoint.handler.name).reference())
@@ -229,7 +220,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         }
         val name = "${service.name.replaceFirstChar { it.lowercaseChar() }}Descriptor"
         val type = ServiceDescriptor::class.asClassName().parameterizedBy(service.declaration.asClassName())
-        val propertySpec = PropertySpec.builder(name, type, KModifier.PRIVATE)
+        val propertySpec = PropertySpec.builder(name, type)
            .initializer(initializer)
 
         service.declaration.containingFile?.let { propertySpec.addOriginatingKSFile(it) }

@@ -32,18 +32,18 @@ class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcClient {
     }
 }
 
-fun Headers.toMetadata(): Metadata = Metadata(toMap()
+private fun Headers.toMetadata(): Metadata = Metadata(toMap()
     .filterKeys { it.startsWith("krpc-") }
     .mapKeys { (value, _) -> value.removePrefix("krpc-") })
 
 @OptIn(ExperimentalCoroutinesApi::class)
-suspend fun Call.await(): Response = suspendCancellableCoroutine { cont ->
+private suspend fun okhttp3.Call.await(): Response = suspendCancellableCoroutine { cont ->
     enqueue(object : Callback {
-        override fun onFailure(call: Call, e: IOException) {
+        override fun onFailure(call: okhttp3.Call, e: IOException) {
             cont.resumeWithException(e)
         }
 
-        override fun onResponse(call: Call, response: Response) {
+        override fun onResponse(call: okhttp3.Call, response: Response) {
             cont.resume(response)
         }
 

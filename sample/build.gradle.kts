@@ -16,6 +16,7 @@ dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(project(":runtime"))
     implementation(project(":integration:server-ktor"))
+    api(project(":integration:server-ktor"))
     implementation(project(":integration:client-ktor"))
     ksp(project(":compiler"))
     implementation(libs.ktor.server.netty)
