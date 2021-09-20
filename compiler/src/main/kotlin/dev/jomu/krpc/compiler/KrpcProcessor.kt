@@ -81,7 +81,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         return requestType.build()
     }
 
-    fun generateResponseWrappers(service: Service, endpoint: Endpoint): Pair<TypeSpec, TypeSpec> {
+    fun generateResponseWrappers(service: Service, endpoint: Endpoint): Pair<TypeSpec, TypeName> {
         val name =
             "${service.name}${endpoint.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }}Response"
         val responseType = TypeSpec
@@ -120,37 +120,23 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
             error("TODO clean this up")
         }
 
-        val errorTypeSpec = TypeSpec.classBuilder("Error").primaryConstructor(FunSpec.constructorBuilder()
-            .addParameter("code", ErrorCode::class)
-            .addParameter("message", String::class)
-            .addParameter("details", errorType.copy(nullable = true))
-            .build())
-            .addModifiers(KModifier.INTERNAL)
-            .addProperty(PropertySpec.builder("code", ErrorCode::class, KModifier.INTERNAL).initializer("code").build())
-            .addProperty(PropertySpec.builder("message", String::class, KModifier.INTERNAL).initializer("message").build())
-            .addProperty(PropertySpec.builder("details", errorType.copy(nullable = true), KModifier.INTERNAL).initializer("details").build())
-            .addAnnotation(ClassName("kotlinx.serialization", "Serializable"))
-            .build()
-
-        responseType.addType(errorTypeSpec)
-
         constructor.addParameter(ParameterSpec.builder("success", successType.copy(nullable = true), KModifier.INTERNAL).defaultValue("null").build())
         responseType.addProperty(PropertySpec.builder("success", successType.copy(nullable = true), KModifier.INTERNAL).initializer("success").build())
 
 
-        val errorClassName = ClassName(service.declaration.packageName.asString(), name).nestedClass(errorTypeSpec.name!!).copy(nullable = true)
-        constructor.addParameter(ParameterSpec.builder("error", errorClassName, KModifier.INTERNAL).defaultValue("null").build())
-        responseType.addProperty(PropertySpec.builder("error", errorClassName, KModifier.INTERNAL).initializer("error").build())
+        val errorClassName = ResponseError::class.asTypeName().parameterizedBy(errorType) // ClassName(service.declaration.packageName.asString(), name).nestedClass(errorTypeSpec.name!!).copy(nullable = true)
+        constructor.addParameter(ParameterSpec.builder("error", errorClassName.copy(nullable = true), KModifier.INTERNAL).defaultValue("null").build())
+        responseType.addProperty(PropertySpec.builder("error", errorClassName.copy(nullable = true), KModifier.INTERNAL).initializer("error").build())
 
 
         responseType.primaryConstructor(constructor.build())
 
         service.declaration.containingFile?.let { responseType.addOriginatingKSFile(it) }
 
-        return responseType.build() to errorTypeSpec
+        return responseType.build() to errorClassName
     }
 
-    fun generateRequestHandlers(service: Service, endpoint: Endpoint, request: TypeSpec, response: TypeSpec, responseError: TypeSpec): FunSpec {
+    fun generateRequestHandlers(service: Service, endpoint: Endpoint, request: TypeSpec, response: TypeSpec, responseError: TypeName): FunSpec {
         val requestTypeName = ClassName(service.declaration.packageName.asString(), request.name!!)
         val responseTypeName = ClassName(service.declaration.packageName.asString(), response.name!!)
         val funSpec = FunSpec.builder("handle${service.name}${endpoint.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }}")
@@ -173,19 +159,15 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         val metadataIndex = metadataParameters.firstOrNull()?.first ?: -1
         funSpec.apply {
             addStatement("val request = message.value", request)
-            beginControlFlow("val response = try {")
-            beginControlFlow("interceptor?.intercept(%T(%S), message) {", MethodInfo::class, "${service.declaration.qualifiedName?.asString()}/${endpoint.name}")
+            beginControlFlow("val response = interceptor?.intercept(%T(%S), message) {", MethodInfo::class, "${service.declaration.qualifiedName?.asString()}/${endpoint.name}")
             val wrappedArguments = parameterNames.mapIndexed { index, name -> index to name }.joinToString(separator = ", ") { if (it.first == metadataIndex) "message.metadata" else "it.value.${it.second}" }
             addStatement("service.${endpoint.name}($wrappedArguments)")
             endControlFlow()
             val arguments = parameterNames.mapIndexed { index, name -> index to name }.joinToString(separator = ", ") { if (it.first == metadataIndex) "message.metadata" else "request.${it.second}" }
             addStatement("?: service.${endpoint.name}($arguments)")
-            nextControlFlow("catch (e: Throwable)")
-            addStatement("Error(%T.INTERNAL, e.message ?: \"<internal error>\")", ErrorCode::class)
-            endControlFlow()
             beginControlFlow("val result = when (response) {")
             addStatement("is %T -> %N(success = response.result)", Success::class, response)
-            addStatement("is %T -> %N(error = %T(response.code, response.message, response.details,))", Error::class, response, responseTypeName.nestedClass(responseError.name!!))
+            addStatement("is %T -> %N(error = %T(response.code, response.message, response.details,))", Error::class, response, responseError)
             endControlFlow()
             addStatement("return %T(result, response.metadata)", KrpcMessage::class)
         }

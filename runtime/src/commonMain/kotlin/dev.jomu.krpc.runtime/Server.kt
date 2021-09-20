@@ -1,6 +1,7 @@
 package dev.jomu.krpc.runtime
 
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
 
@@ -17,7 +18,7 @@ class MethodDescriptor<Service, Req, Resp>(
 
 interface Call {
     suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T
-    suspend fun <T> respond(json: Json, serializer: SerializationStrategy<T>, response: T, metadata: Metadata)
+    suspend fun <T> respond(json: Json, serializer: SerializationStrategy<T>, response: T, metadata: Metadata = emptyMetadata())
     val metadata: Metadata
 }
 
@@ -52,6 +53,10 @@ fun buildKrpcServer(block: KrpcServerBuilder.() -> Unit): KrpcServer {
     )
 }
 
+// mirrors the shape of the generated response messages, can be used to send generic errors to the client
+@Serializable
+private class GenericErrorResponse(val error: ResponseError<Unit>)
+
 private class RealKrpcServer(
     services: List<RegisteredService<*>>,
     private val json: Json,
@@ -61,8 +66,16 @@ private class RealKrpcServer(
     private val handlers = services.map { rs -> rs.toHandlerMap() }.reduce { a, b -> a + b }
 
     override suspend fun handleRequest(path: String, call: Call) {
-        val handler = handlers[path.trimStart('/')] ?: return // TODO return NotFound
-        handler.handle(call)
+        val path = path.trimStart('/')
+        if (path.isEmpty()) {
+            return call.respondWithGenericError(ErrorCode.INVALID_ARGUMENT, "Path may not be empty")
+        }
+        val handler = handlers[path] ?: return call.respondWithGenericError(ErrorCode.UNIMPLEMENTED, "$path not implemented")
+        try {
+            handler.handle(call)
+        } catch (e: Exception) {
+            return call.respondWithGenericError(ErrorCode.INTERNAL, e.message ?: "<internal error>")
+        }
     }
 
     private suspend fun <T> ImplementationWithMethod<T>.handle(call: Call) {
@@ -73,6 +86,10 @@ private class RealKrpcServer(
         val request = call.readRequest(json, requestDeserializer)
         val response = handler(implementation, KrpcMessage(request, call.metadata), interceptor)
         call.respond(json, responseSerializer, response.value, response.metadata)
+    }
+
+    suspend fun Call.respondWithGenericError(code: ErrorCode, message: String) {
+        respond(json, GenericErrorResponse.serializer(), GenericErrorResponse(ResponseError(code, message)))
     }
 }
 

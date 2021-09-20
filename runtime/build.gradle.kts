@@ -1,6 +1,7 @@
 plugins {
     kotlin("multiplatform")
     id("maven-publish")
+    alias(libs.plugins.kotlin.serialization)
 }
 
 repositories {
@@ -12,7 +13,7 @@ version = "0.1.2"
 
 kotlin {
     jvm()
-    js {
+    js(BOTH) {
         browser()
         nodejs()
     }

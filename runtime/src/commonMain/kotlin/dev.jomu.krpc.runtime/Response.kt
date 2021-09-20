@@ -1,5 +1,7 @@
 package dev.jomu.krpc.runtime
 
+import kotlinx.serialization.Serializable
+
 sealed class Response<T, E> {
     abstract val metadata: Metadata
 }
@@ -11,7 +13,8 @@ enum class ErrorCode {
     NOT_FOUND,
     INTERNAL,
     UNAUTHENTICATED,
-    PERMISSION_DENIED
+    PERMISSION_DENIED,
+    UNIMPLEMENTED
 }
 
 data class Metadata(val metadata: Map<String, String>) : Map<String, String> by metadata
@@ -24,5 +27,13 @@ fun <T, E> Response<T, E>.withMetadata(metadata: Metadata): Response<T, E> = whe
     is Success -> copy(metadata = metadata)
     is Error -> copy(metadata = metadata)
 }
+
+// serialized version of an error
+@Serializable
+class ResponseError<T>(
+    val code: ErrorCode,
+    val message: String,
+    val details: T? = null
+)
 
 
