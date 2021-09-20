@@ -18,12 +18,12 @@ class MethodDescriptor<Service, Req, Resp>(
 
 interface Call {
     suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T
-    suspend fun <T> respond(json: Json, serializer: SerializationStrategy<T>, response: T, metadata: Metadata = emptyMetadata())
+
     val metadata: Metadata
 }
 
 interface KrpcServer {
-    suspend fun handleRequest(path: String, call: Call)
+    suspend fun handleRequest(path: String, call: Call): ServerResponse<*>
 }
 
 internal class RegisteredService<T>(val descriptor: ServiceDescriptor<T>, val implementation: T)
@@ -65,31 +65,35 @@ private class RealKrpcServer(
     private val interceptor = if (interceptors.isEmpty()) null else ChainUnaryServerInterceptor(interceptors)
     private val handlers = services.map { rs -> rs.toHandlerMap() }.reduce { a, b -> a + b }
 
-    override suspend fun handleRequest(path: String, call: Call) {
+    override suspend fun handleRequest(path: String, call: Call): ServerResponse<*> {
         val path = path.trimStart('/')
         if (path.isEmpty()) {
-            return call.respondWithGenericError(ErrorCode.INVALID_ARGUMENT, "Path may not be empty")
+            return createGenericError(ErrorCode.INVALID_ARGUMENT, "Path may not be empty")
         }
-        val handler = handlers[path] ?: return call.respondWithGenericError(ErrorCode.UNIMPLEMENTED, "$path not implemented")
-        try {
+        val handler =
+            handlers[path] ?: return createGenericError(ErrorCode.UNIMPLEMENTED, "$path not implemented")
+        return try {
             handler.handle(call)
         } catch (e: Exception) {
-            return call.respondWithGenericError(ErrorCode.INTERNAL, e.message ?: "<internal error>")
+            createGenericError(ErrorCode.INTERNAL, e.message ?: "<internal error>")
         }
     }
 
-    private suspend fun <T> ImplementationWithMethod<T>.handle(call: Call) {
-        method.handle(implementation, call)
+    private suspend fun <T> ImplementationWithMethod<T>.handle(call: Call): ServerResponse<*> {
+        return method.handle(implementation, call)
     }
 
-    private suspend fun <Service, Req, Resp> MethodDescriptor<Service, Req, Resp>.handle(implementation: Service, call: Call) {
+    private suspend fun <Service, Req, Resp> MethodDescriptor<Service, Req, Resp>.handle(
+        implementation: Service,
+        call: Call
+    ): ServerResponse<Resp> {
         val request = call.readRequest(json, requestDeserializer)
         val response = handler(implementation, KrpcMessage(request, call.metadata), interceptor)
-        call.respond(json, responseSerializer, response.value, response.metadata)
+        return ServerResponse(response.metadata, response.value, responseSerializer, json)
     }
 
-    suspend fun Call.respondWithGenericError(code: ErrorCode, message: String) {
-        respond(json, GenericErrorResponse.serializer(), GenericErrorResponse(ResponseError(code, message)))
+    fun createGenericError(code: ErrorCode, message: String): ServerResponse<*> {
+        return ServerResponse(emptyMetadata(), GenericErrorResponse(ResponseError(code, message)), GenericErrorResponse.serializer(), json)
     }
 }
 
@@ -128,5 +132,15 @@ class ChainUnaryServerInterceptor(private val interceptors: List<UnaryServerInte
         }
 
         return chain(request)
+    }
+}
+
+interface JsonEncoder<R> {
+    fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): R
+}
+
+class ServerResponse<T>(val metadata: Metadata, private val value: T, private val serializer: SerializationStrategy<T>, private val json: Json) {
+    fun <R> encode(encoder: JsonEncoder<R>): R {
+        return encoder.encode(json, serializer, value)
     }
 }

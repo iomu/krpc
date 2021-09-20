@@ -13,23 +13,21 @@ import kotlinx.serialization.json.Json
 fun Routing.registerServer(server: KrpcServer, prefix: String = "") {
     post("$prefix/{path...}") {
         val path = call.parameters.getAll("path")?.joinToString("/") ?: return@post call.respondText("Not found", status = HttpStatusCode.NotFound)
-        server.handleRequest(path, KtorCall(call))
+        val response = server.handleRequest(path, KtorCall(call))
+        response.metadata.forEach { (key, value) -> call.response.header("krpc-$key", value) }
+        call.respondText(response.encode(JsonStringEncoder))
+    }
+}
+
+private object JsonStringEncoder : JsonEncoder<String> {
+    override fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): String {
+        return json.encodeToString(serializer, value)
     }
 }
 
 private class KtorCall(val call: ApplicationCall) : Call {
     override suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T {
         return json.decodeFromString(deserializer, call.receiveText())
-    }
-
-    override suspend fun <T> respond(
-        json: Json,
-        serializer: SerializationStrategy<T>,
-        response: T,
-        metadata: Metadata
-    ) {
-        metadata.forEach { (key, value) -> call.response.header("krpc-$key", value) }
-        call.respondText(json.encodeToString(serializer, response))
     }
 
     override val metadata: Metadata
