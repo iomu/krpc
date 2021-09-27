@@ -5,6 +5,7 @@ import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import dev.jomu.krpc.runtime.*
+import kotlinx.serialization.json.Json
 import java.util.*
 
 class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger: KSPLogger) : SymbolProcessor {
@@ -218,14 +219,13 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
             primaryConstructor(FunSpec.constructorBuilder()
                 .addParameter("client", KrpcClient::class)
                 .addParameter("baseUrl", String::class)
-                .addParameter("serializer", Serializer::class)
                 .addParameter(ParameterSpec.builder("interceptor", interceptorType).defaultValue("null").build())
                 .build())
 
             addProperty(PropertySpec.builder("client", KrpcClient::class, KModifier.PRIVATE).initializer("client").build())
             addProperty(PropertySpec.builder("baseUrl", String::class, KModifier.PRIVATE).initializer("baseUrl").build())
-            addProperty(PropertySpec.builder("serializer", Serializer::class, KModifier.PRIVATE).initializer("serializer").build())
             addProperty(PropertySpec.builder("interceptor", interceptorType, KModifier.PRIVATE).initializer("interceptor").build())
+            addProperty(PropertySpec.builder("json", ClassName("kotlinx.serialization.json", "Json"), KModifier.PRIVATE).initializer("%T { ignoreUnknownKeys = true }", ClassName("kotlinx.serialization.json", "Json")).build())
 
             specs.forEach { endpoint ->
                 addFunction(
@@ -253,12 +253,10 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                             addStatement("val krpcRequest = %N($parameters)", endpoint.request)
                             addStatement("")
                             beginControlFlow("val execute: %T = { request ->", LambdaTypeName.get(null, listOf(ParameterSpec.Companion.unnamed(KrpcRequest::class.asTypeName().parameterizedBy(returnTypeClassName))), returnType).copy(suspending = true))
-                            addStatement("val body = serializer.encode(%N.serializer(), request.value)", endpoint.request)
-                            addStatement("val message = %T(body, request.metadata)", KrpcMessage::class)
-                            addStatement("")
+                            addStatement("val message = %T(request.metadata, request.value, %N.serializer(), json)", EncodableMessage::class, endpoint.request)
                             addStatement("val result = client.executeUnaryCall(url, message)")
                             addStatement("")
-                            addStatement("val response = serializer.decode(%N.serializer(), result.value)", endpoint.response)
+                            addStatement("val response = result.readRequest(json, %N.serializer())", endpoint.response)
                             addStatement("")
                             beginControlFlow("if (response.success != null) {")
                             addStatement("%T(response.success, result.metadata)", Success::class)

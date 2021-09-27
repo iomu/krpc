@@ -1,15 +1,8 @@
 package dev.jomu.krpc.runtime
 
-import kotlinx.serialization.DeserializationStrategy
-import kotlinx.serialization.SerializationStrategy
 
 interface KrpcClient {
-    suspend fun executeUnaryCall(url: String, message: KrpcMessage<String>): KrpcMessage<String>
-}
-
-interface Serializer {
-    fun <T> encode(serializer: SerializationStrategy<T>, value: T): String
-    fun <T> decode(deserializer: DeserializationStrategy<T>, encoded: String): T
+    suspend fun executeUnaryCall(url: String, message: EncodableMessage<*>): Call
 }
 
 interface UnaryClientInterceptor {

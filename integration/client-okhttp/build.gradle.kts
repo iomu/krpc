@@ -16,6 +16,7 @@ dependencies {
     api(project(":runtime"))
     api(libs.okhttp.core)
     implementation(libs.kotlin.coroutines.core)
+    implementation(libs.kotlin.serialization.json)
 }
 
 publishing {

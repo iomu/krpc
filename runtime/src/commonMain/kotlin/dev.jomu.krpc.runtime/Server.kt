@@ -16,6 +16,7 @@ class MethodDescriptor<Service, Req, Resp>(
     val responseSerializer: SerializationStrategy<Resp>,
 )
 
+// TODO: naming
 interface Call {
     suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T
 
@@ -23,7 +24,7 @@ interface Call {
 }
 
 interface KrpcServer {
-    suspend fun handleRequest(path: String, call: Call): ServerResponse<*>
+    suspend fun handleRequest(path: String, call: Call): EncodableMessage<*>
 }
 
 internal class RegisteredService<T>(val descriptor: ServiceDescriptor<T>, val implementation: T)
@@ -65,7 +66,7 @@ private class RealKrpcServer(
     private val interceptor = if (interceptors.isEmpty()) null else ChainUnaryServerInterceptor(interceptors)
     private val handlers = services.map { rs -> rs.toHandlerMap() }.reduce { a, b -> a + b }
 
-    override suspend fun handleRequest(path: String, call: Call): ServerResponse<*> {
+    override suspend fun handleRequest(path: String, call: Call): EncodableMessage<*> {
         val path = path.trimStart('/')
         if (path.isEmpty()) {
             return createGenericError(ErrorCode.INVALID_ARGUMENT, "Path may not be empty")
@@ -79,21 +80,21 @@ private class RealKrpcServer(
         }
     }
 
-    private suspend fun <T> ImplementationWithMethod<T>.handle(call: Call): ServerResponse<*> {
+    private suspend fun <T> ImplementationWithMethod<T>.handle(call: Call): EncodableMessage<*> {
         return method.handle(implementation, call)
     }
 
     private suspend fun <Service, Req, Resp> MethodDescriptor<Service, Req, Resp>.handle(
         implementation: Service,
         call: Call
-    ): ServerResponse<Resp> {
+    ): EncodableMessage<Resp> {
         val request = call.readRequest(json, requestDeserializer)
         val response = handler(implementation, KrpcMessage(request, call.metadata), interceptor)
-        return ServerResponse(response.metadata, response.value, responseSerializer, json)
+        return EncodableMessage(response.metadata, response.value, responseSerializer, json)
     }
 
-    fun createGenericError(code: ErrorCode, message: String): ServerResponse<*> {
-        return ServerResponse(emptyMetadata(), GenericErrorResponse(ResponseError(code, message)), GenericErrorResponse.serializer(), json)
+    fun createGenericError(code: ErrorCode, message: String): EncodableMessage<*> {
+        return EncodableMessage(emptyMetadata(), GenericErrorResponse(ResponseError(code, message)), GenericErrorResponse.serializer(), json)
     }
 }
 
@@ -139,7 +140,7 @@ interface JsonEncoder<R> {
     suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): R
 }
 
-class ServerResponse<T>(val metadata: Metadata, private val value: T, private val serializer: SerializationStrategy<T>, private val json: Json) {
+class EncodableMessage<T>(val metadata: Metadata, private val value: T, private val serializer: SerializationStrategy<T>, private val json: Json) {
     suspend fun <R> encode(encoder: JsonEncoder<R>): R {
         return encoder.encode(json, serializer, value)
     }

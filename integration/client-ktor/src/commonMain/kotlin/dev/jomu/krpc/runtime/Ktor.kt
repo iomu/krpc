@@ -11,19 +11,32 @@ import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
 
 class KtorClient(private val client: HttpClient) : KrpcClient {
-    override suspend fun executeUnaryCall(url: String, message: KrpcMessage<String>): KrpcMessage<String> {
+    override suspend fun executeUnaryCall(url: String, message: EncodableMessage<*>): Call {
         val response = client.post<HttpResponse>(url) {
-            body = message.value
+            body = message.encode(JsonStringEncoder)
             headers {
                 message.metadata.forEach { (key, value) ->
                     append("krpc-$key", value)
                 }
             }
         }
-        val contentAsString = response.content.readRemaining().readText()
-        val metadata = response.headers.toMetadata()
 
-        return KrpcMessage(contentAsString, metadata)
+        return ResponseCall(response)
+    }
+}
+
+private class ResponseCall(val response: HttpResponse) : Call {
+    override suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T {
+        return json.decodeFromString(deserializer, response.content.readRemaining().readText())
+    }
+
+    override val metadata: Metadata
+        get() = response.headers.toMetadata()
+}
+
+private object JsonStringEncoder : JsonEncoder<String> {
+    override suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): String {
+        return json.encodeToString(serializer, value)
     }
 }
 
