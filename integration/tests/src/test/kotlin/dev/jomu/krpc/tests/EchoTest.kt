@@ -20,7 +20,7 @@ internal class EchoTest {
         }
 
         override suspend fun echoMetadata(value: Unit, metadata: Metadata): Response<Unit, Unit> {
-            return Success<Unit, Unit>(Unit).withMetadata(metadata)
+            return Success(Unit, metadata)
         }
     }
 
