@@ -21,11 +21,10 @@ import kotlin.coroutines.resumeWithException
 class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcClient {
     override suspend fun executeUnaryCall(url: String, message: EncodableMessage<*>): Call {
         val headers = Headers.Builder().apply {
-            message.metadata.forEach { (key, value) ->
-                add("krpc-$key", value)
+            message.headers.forEach { (key, value) ->
+                add(key, value)
             }
         }.build()
-
 
         val request = Request.Builder()
             .url(url)
@@ -62,14 +61,9 @@ private class OkHttpCall(val response: Response) : Call {
         return json.decodeFromStream(deserializer, response.body?.byteStream() ?: error("no response body"))
     }
 
-    override val metadata: Metadata
-        get() = response.headers.toMetadata()
-
+    override val headers: Map<String, String>
+        get() = response.headers.toMap()
 }
-
-private fun Headers.toMetadata(): Metadata = Metadata(toMap()
-    .filterKeys { it.startsWith("krpc-") }
-    .mapKeys { (value, _) -> value.removePrefix("krpc-") })
 
 @OptIn(ExperimentalCoroutinesApi::class)
 private suspend fun okhttp3.Call.await(): Response = suspendCancellableCoroutine { cont ->

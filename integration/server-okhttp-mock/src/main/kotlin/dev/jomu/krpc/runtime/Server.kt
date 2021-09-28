@@ -17,8 +17,8 @@ class KrpcDispatcher(val server: KrpcServer) : Dispatcher() {
             val response = server.handleRequest(request.path.orEmpty(), OkHttpCall(request))
 
             val headers = Headers.Builder().apply {
-                response.metadata.forEach { (key, value) ->
-                    add("krpc-$key", value)
+                response.headers.forEach { (key, value) ->
+                    add(key, value)
                 }
             }.build()
 
@@ -39,11 +39,8 @@ private class OkHttpCall(val request: RecordedRequest) : Call {
         return json.decodeFromStream(deserializer, request.body.inputStream())
     }
 
-    override val metadata: Metadata
-        get() = request.headers.toMetadata()
+    override val headers: Map<String, String>
+        get() = request.headers.toMap()
 
 }
 
-fun Headers.toMetadata(): Metadata = Metadata(toMap()
-    .filterKeys { it.startsWith("krpc-") }
-    .mapKeys { (value, _) -> value.removePrefix("krpc-") })

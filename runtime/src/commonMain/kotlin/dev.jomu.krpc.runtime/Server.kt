@@ -20,7 +20,7 @@ class MethodDescriptor<Service, Req, Resp>(
 interface Call {
     suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T
 
-    val metadata: Metadata
+    val headers: Map<String, String>
 }
 
 interface KrpcServer {
@@ -58,6 +58,7 @@ fun buildKrpcServer(block: KrpcServerBuilder.() -> Unit): KrpcServer {
 @Serializable
 private class GenericErrorResponse(val error: ResponseError<Unit>)
 
+@OptIn(ExperimentalStdlibApi::class)
 private class RealKrpcServer(
     services: List<RegisteredService<*>>,
     private val json: Json,
@@ -89,12 +90,12 @@ private class RealKrpcServer(
         call: Call
     ): EncodableMessage<Resp> {
         val request = call.readRequest(json, requestDeserializer)
-        val response = handler(implementation, KrpcMessage(request, call.metadata), interceptor)
-        return EncodableMessage(response.metadata, response.value, responseSerializer, json)
+        val response = handler(implementation, KrpcMessage(request, Metadata.fromHttpHeaders(call.headers)), interceptor)
+        return EncodableMessage(response.metadata.toHttpHeaders(), response.value, responseSerializer, json)
     }
 
     fun createGenericError(code: ErrorCode, message: String): EncodableMessage<*> {
-        return EncodableMessage(emptyMetadata(), GenericErrorResponse(ResponseError(code, message)), GenericErrorResponse.serializer(), json)
+        return EncodableMessage(emptyMap(), GenericErrorResponse(ResponseError(code, message)), GenericErrorResponse.serializer(), json)
     }
 }
 
@@ -140,7 +141,7 @@ interface JsonEncoder<R> {
     suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): R
 }
 
-class EncodableMessage<T>(val metadata: Metadata, private val value: T, private val serializer: SerializationStrategy<T>, private val json: Json) {
+class EncodableMessage<T>(val headers: Map<String, String>, private val value: T, private val serializer: SerializationStrategy<T>, private val json: Json) {
     suspend fun <R> encode(encoder: JsonEncoder<R>): R {
         return encoder.encode(json, serializer, value)
     }

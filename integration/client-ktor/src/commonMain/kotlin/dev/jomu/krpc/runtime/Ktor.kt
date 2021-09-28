@@ -15,8 +15,8 @@ class KtorClient(private val client: HttpClient) : KrpcClient {
         val response = client.post<HttpResponse>(url) {
             body = message.encode(JsonStringEncoder)
             headers {
-                message.metadata.forEach { (key, value) ->
-                    append("krpc-$key", value)
+                message.headers.forEach { (key, value) ->
+                    append(key, value)
                 }
             }
         }
@@ -30,8 +30,9 @@ private class ResponseCall(val response: HttpResponse) : Call {
         return json.decodeFromString(deserializer, response.content.readRemaining().readText())
     }
 
-    override val metadata: Metadata
-        get() = response.headers.toMetadata()
+    override val headers: Map<String, String>
+        get() = response.headers.toMap()
+            .mapValues { (_, value) -> value.first() }
 }
 
 private object JsonStringEncoder : JsonEncoder<String> {

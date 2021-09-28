@@ -51,6 +51,6 @@ object PrintInterceptor : UnaryServerInterceptor, UnaryClientInterceptor {
         val response = next(request).also {
             println("Response: $it")
         }
-        return response.withMetadata(Metadata(response.metadata.mapValues { (_, value) -> value.uppercase(Locale.getDefault()) }))
+        return response.withMetadata(Metadata(response.metadata.values.mapValues { (_, value) -> value.uppercase(Locale.getDefault()) }))
     }
 }

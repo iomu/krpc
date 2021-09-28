@@ -23,7 +23,7 @@ fun Routing.registerServer(server: KrpcServer, prefix: String = "") {
             status = HttpStatusCode.NotFound
         )
         val response = server.handleRequest(path, KtorCall(call))
-        response.metadata.forEach { (key, value) -> call.response.header("krpc-$key", value) }
+        response.headers.forEach { (key, value) -> call.response.header(key, value) }
         response.encode(ResponseEncoder(call))
     }
 }
@@ -52,12 +52,6 @@ private class KtorCall(val call: ApplicationCall) : Call {
         }
     }
 
-    override val metadata: Metadata
-        get() = call.request.headers.toMetadata()
-
+    override val headers: Map<String, String>
+        get() = call.request.headers.toMap().mapValues { (_, value) -> value.first() }
 }
-
-fun Headers.toMetadata(): Metadata = Metadata(toMap()
-    .mapValues { (_, value) -> value.first() }
-    .filterKeys { it.startsWith("krpc-") }
-    .mapKeys { (value, _) -> value.removePrefix("krpc-") })

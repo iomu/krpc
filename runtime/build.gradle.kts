@@ -9,7 +9,7 @@ repositories {
 }
 
 group = "dev.jomu.krpc"
-version = "0.1.4"
+version = "0.1.5"
 
 kotlin {
     jvm()
