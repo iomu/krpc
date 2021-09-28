@@ -14,7 +14,7 @@ import okhttp3.mockwebserver.RecordedRequest
 class KrpcDispatcher(val server: KrpcServer) : Dispatcher() {
     override fun dispatch(request: RecordedRequest): MockResponse {
         return runBlocking {
-            val response = server.handleRequest(request.path.orEmpty(), OkHttpCall(request))
+            val response = server.handleRequest(request.path.orEmpty(), OkHttpServerCall(request))
 
             val headers = Headers.Builder().apply {
                 response.headers.forEach { (key, value) ->
@@ -33,7 +33,7 @@ private object JsonStringEncoder : JsonEncoder<String> {
     }
 }
 
-private class OkHttpCall(val request: RecordedRequest) : Call {
+private class OkHttpServerCall(val request: RecordedRequest) : Call {
     @OptIn(ExperimentalSerializationApi::class)
     override suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T {
         return json.decodeFromStream(deserializer, request.body.inputStream())

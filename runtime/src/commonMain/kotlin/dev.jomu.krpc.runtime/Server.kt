@@ -65,7 +65,7 @@ private class RealKrpcServer(
     interceptors: List<UnaryServerInterceptor> = emptyList(),
 ) : KrpcServer {
     private val interceptor = if (interceptors.isEmpty()) null else ChainUnaryServerInterceptor(interceptors)
-    private val handlers = services.map { rs -> rs.toHandlerMap() }.reduce { a, b -> a + b }
+    private val handlers = services.map { rs -> rs.toHandlerMap() }.fold(emptyMap<String, ImplementationWithMethod<*>>()) { a, b -> a + b }
 
     override suspend fun handleRequest(path: String, call: Call): EncodableMessage<*> {
         val path = path.trimStart('/')

@@ -15,11 +15,8 @@ dependencies {
     implementation(kotlin("stdlib-common"))
     implementation(project(":runtime"))
     implementation(libs.kotlin.coroutines.core)
-    
-//    api(libs.okhttp.core)
-//    implementation(libs.okhttp.core)
-//    implementation(libs.okhttp.mockwebserver)
-    implementation(libs.okhttp.mockwebserver)
+
+    api(libs.okhttp.mockwebserver)
 
     api(libs.kotlin.serialization.json)
 }
