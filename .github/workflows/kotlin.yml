@@ -18,7 +18,7 @@ jobs:
 
       ## Actual task
       - name: Check with Gradle
-        run: ./gradlew assemble test --no-daemon --stacktrace --continue
+        run: ./gradlew assemble test --no-daemon --stacktrace --continue --scan
         # Decoder:
         #    --continue: Run all checks, even if some fail.
         #    test: unit tests
