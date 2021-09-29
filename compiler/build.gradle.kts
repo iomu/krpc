@@ -15,7 +15,8 @@ repositories {
 dependencies {
     implementation(libs.kotlin.stdlib)
     implementation(libs.ksp.api)
-    implementation(libs.kotlinpoet)
+    implementation(libs.kotlinpoet.core)
+    implementation(libs.kotlinpoet.ksp)
     implementation(project(":runtime"))
 
     testImplementation(kotlin("test"))
