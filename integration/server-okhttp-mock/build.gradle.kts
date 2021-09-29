@@ -1,11 +1,9 @@
 plugins {
     id("java-library")
     kotlin("jvm")
-    id("maven-publish")
 }
 
-group = "dev.jomu.krpc"
-version = "0.1.5"
+apply(from = rootProject.file(".buildscript/configure-maven-publish.gradle"))
 
 repositories {
     mavenCentral()
@@ -19,12 +17,4 @@ dependencies {
     api(libs.okhttp.mockwebserver)
 
     api(libs.kotlin.serialization.json)
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("server-okhttp-mock") {
-            from(components["java"])
-        }
-    }
 }

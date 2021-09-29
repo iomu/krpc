@@ -1,15 +1,13 @@
 plugins {
     kotlin("multiplatform")
-    id("maven-publish")
     alias(libs.plugins.kotlin.serialization)
 }
+
+apply(from = rootProject.file(".buildscript/configure-maven-publish.gradle"))
 
 repositories {
     mavenCentral()
 }
-
-group = "dev.jomu.krpc"
-version = "0.1.5"
 
 kotlin {
     jvm()

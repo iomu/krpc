@@ -1,6 +1,7 @@
 buildscript {
     dependencies {
         classpath(libs.kotlin.gradle)
+        classpath("com.vanniktech:gradle-maven-publish-plugin:0.18.0")
     }
 
     repositories {

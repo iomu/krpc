@@ -1,10 +1,8 @@
 plugins {
     kotlin("multiplatform")
-    id("maven-publish")
 }
 
-group = "dev.jomu.krpc"
-version = "0.1.5"
+apply(from = rootProject.file(".buildscript/configure-maven-publish.gradle"))
 
 repositories {
     mavenCentral()
