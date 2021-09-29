@@ -28,7 +28,7 @@ class KrpcDispatcher(val server: KrpcServer) : Dispatcher() {
 }
 
 private object JsonStringEncoder : JsonEncoder<String> {
-    override suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): String {
+    override fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): String {
         return json.encodeToString(serializer, value)
     }
 }

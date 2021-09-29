@@ -35,9 +35,7 @@ class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcClient {
                 }
 
                 override fun writeTo(sink: BufferedSink) {
-                    runBlocking {
-                        message.encode(CallEncoder(sink.outputStream()))
-                    }
+                    message.encode(CallEncoder(sink.outputStream()))
                 }
             })
             .build()
@@ -48,9 +46,9 @@ class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcClient {
     }
 }
 
-private class CallEncoder(val stream: OutputStream): JsonEncoder<Unit> {
+private class CallEncoder(val stream: OutputStream) : JsonEncoder<Unit> {
     @OptIn(ExperimentalSerializationApi::class)
-    override suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U) {
+    override fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U) {
         json.encodeToStream(serializer, value, stream)
     }
 }

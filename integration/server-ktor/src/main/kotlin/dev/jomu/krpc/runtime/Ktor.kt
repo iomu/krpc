@@ -15,6 +15,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
 import java.io.InputStream
+import java.io.OutputStream
 
 fun Routing.registerServer(server: KrpcServer, prefix: String = "") {
     post("$prefix/{path...}") {
@@ -24,22 +25,18 @@ fun Routing.registerServer(server: KrpcServer, prefix: String = "") {
         )
         val response = server.handleRequest(path, KtorCall(call))
         response.headers.forEach { (key, value) -> call.response.header(key, value) }
-        response.encode(ResponseEncoder(call))
-    }
-}
 
-private object JsonStringEncoder : JsonEncoder<String> {
-    override suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): String {
-        return json.encodeToString(serializer, value)
-    }
-}
-
-private class ResponseEncoder(val call: ApplicationCall) : JsonEncoder<Unit> {
-    @OptIn(ExperimentalSerializationApi::class)
-    override suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U) {
         call.respondOutputStream {
-            json.encodeToStream(serializer, value, this)
+            response.encode(StreamEncoder(this))
         }
+    }
+}
+
+private class StreamEncoder(val stream: OutputStream) : JsonEncoder<Unit> {
+    @OptIn(ExperimentalSerializationApi::class)
+    override fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U) {
+        json.encodeToStream(serializer, value, stream)
+
     }
 }
 

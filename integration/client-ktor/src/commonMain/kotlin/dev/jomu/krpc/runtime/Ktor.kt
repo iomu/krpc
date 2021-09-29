@@ -36,7 +36,7 @@ private class ResponseCall(val response: HttpResponse) : Call {
 }
 
 private object JsonStringEncoder : JsonEncoder<String> {
-    override suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): String {
+    override fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): String {
         return json.encodeToString(serializer, value)
     }
 }
