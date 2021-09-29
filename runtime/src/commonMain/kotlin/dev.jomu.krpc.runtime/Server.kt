@@ -138,11 +138,11 @@ class ChainUnaryServerInterceptor(private val interceptors: List<UnaryServerInte
 }
 
 interface JsonEncoder<R> {
-    suspend fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): R
+    fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): R
 }
 
 class EncodableMessage<T>(val headers: Map<String, String>, private val value: T, private val serializer: SerializationStrategy<T>, private val json: Json) {
-    suspend fun <R> encode(encoder: JsonEncoder<R>): R {
+    fun <R> encode(encoder: JsonEncoder<R>): R {
         return encoder.encode(json, serializer, value)
     }
 }
