@@ -43,7 +43,7 @@ object Implementation : TestService {
 
 object PrintInterceptor : UnaryServerInterceptor, UnaryClientInterceptor {
     override suspend fun <Req, Resp, Err> intercept(
-        info: MethodInfo,
+        info: MethodInfo<Req, Resp, Err>,
         request: Req,
         metadata: Metadata,
         next: suspend (Req, Metadata) -> Response<Resp, Err>

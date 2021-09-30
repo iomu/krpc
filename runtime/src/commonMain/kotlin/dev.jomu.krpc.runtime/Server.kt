@@ -1,6 +1,7 @@
 package dev.jomu.krpc.runtime
 
 import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
@@ -8,11 +9,8 @@ import kotlinx.serialization.json.Json
 typealias MethodHandler<Service, Req, Resp, Err> = suspend (service: Service, request: Req, metadata: Metadata) -> Response<Resp, Err>
 
 class MethodDescriptor<Service, Req, Resp, Err>(
-    val name: String,
-    val info: MethodInfo,
+    val info: MethodInfo<Req, Resp, Err>,
     val handler: MethodHandler<Service, Req, Resp, Err>,
-    val requestDeserializer: DeserializationStrategy<Req>,
-    val responseSerializer: SerializationStrategy<Response<Resp, Err>>,
 )
 
 // TODO: naming
@@ -85,13 +83,13 @@ private class RealKrpcServer(
         implementation: Service,
         call: Call
     ): EncodableMessage<Response<Resp, Err>> {
-        val request = call.readRequest(json, requestDeserializer)
+        val request = call.readRequest(json, info.requestSerializer)
         val metadata = Metadata.fromHttpHeaders(call.headers)
 
         val response = interceptor?.intercept(info, request, metadata) { request, metadata ->
             handler(implementation, request, metadata)
         } ?: handler(implementation, request, metadata)
-        return EncodableMessage(response.metadata.toHttpHeaders(), response, responseSerializer, json)
+        return EncodableMessage(response.metadata.toHttpHeaders(), response, info.responseSerializer, json)
     }
 
     fun createGenericError(code: ErrorCode, message: String): EncodableMessage<*> {
@@ -101,19 +99,22 @@ private class RealKrpcServer(
 
 private fun <T> RegisteredService<T>.toHandlerMap(): Map<String, ImplementationWithMethod<T>> {
     return descriptor.methods.associateBy {
-        descriptor.path(it)
+        it.info.path
     }.mapValues { ImplementationWithMethod(implementation, it.value) }
 }
 
-data class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T, *, *, *>>)
+class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T, *, *, *>>)
 
-fun <T> ServiceDescriptor<T>.path(method: MethodDescriptor<T, *, *, *>) = "$name/${method.name}"
-
-class MethodInfo(val name: String)
+class MethodInfo<Req, Resp, Err>(
+    val name: String,
+    internal val path: String,
+    val requestSerializer: KSerializer<Req>,
+    val responseSerializer: KSerializer<Response<Resp, Err>>,
+)
 
 interface UnaryServerInterceptor {
     suspend fun <Req, Resp, Err> intercept(
-        info: MethodInfo,
+        info: MethodInfo<Req, Resp, Err>,
         request: Req,
         metadata: Metadata,
         next: suspend (Req, Metadata) -> Response<Resp, Err>
@@ -122,7 +123,7 @@ interface UnaryServerInterceptor {
 
 class ChainUnaryServerInterceptor(private val interceptors: List<UnaryServerInterceptor>) : UnaryServerInterceptor {
     override suspend fun <Req, Resp, Err> intercept(
-        info: MethodInfo,
+        info: MethodInfo<Req, Resp, Err>,
         request: Req,
         metadata: Metadata,
         next: suspend (Req, Metadata) -> Response<Resp, Err>
