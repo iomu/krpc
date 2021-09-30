@@ -1,19 +1,18 @@
 package dev.jomu.krpc.runtime
 
 import kotlinx.serialization.DeserializationStrategy
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
-data class KrpcMessage<T>(val value: T, val metadata: Metadata = emptyMetadata())
+typealias MethodHandler<Service, Req, Resp, Err> = suspend (service: Service, request: Req, metadata: Metadata) -> Response<Resp, Err>
 
-typealias MethodHandler<Service, Req, Resp> = suspend (service: Service, request: KrpcMessage<Req>, interceptor: UnaryServerInterceptor?) -> KrpcMessage<Resp>
-
-class MethodDescriptor<Service, Req, Resp>(
+class MethodDescriptor<Service, Req, Resp, Err>(
     val name: String,
-    val handler: MethodHandler<Service, Req, Resp>,
+    val info: MethodInfo,
+    val handler: MethodHandler<Service, Req, Resp, Err>,
     val requestDeserializer: DeserializationStrategy<Req>,
-    val responseSerializer: SerializationStrategy<Resp>,
+    val responseSerializer: SerializationStrategy<Response<Resp, Err>>,
 )
 
 // TODO: naming
@@ -29,7 +28,7 @@ interface KrpcServer {
 
 internal class RegisteredService<T>(val descriptor: ServiceDescriptor<T>, val implementation: T)
 
-private class ImplementationWithMethod<T>(val implementation: T, val method: MethodDescriptor<T, *, *>)
+private class ImplementationWithMethod<T>(val implementation: T, val method: MethodDescriptor<T, *, *, *>)
 
 class KrpcServerBuilder {
     internal val interceptors: MutableList<UnaryServerInterceptor> = mutableListOf()
@@ -54,9 +53,6 @@ fun buildKrpcServer(block: KrpcServerBuilder.() -> Unit): KrpcServer {
     )
 }
 
-// mirrors the shape of the generated response messages, can be used to send generic errors to the client
-@Serializable
-private class GenericErrorResponse(val error: ResponseError<Unit>)
 
 @OptIn(ExperimentalStdlibApi::class)
 private class RealKrpcServer(
@@ -85,17 +81,21 @@ private class RealKrpcServer(
         return method.handle(implementation, call)
     }
 
-    private suspend fun <Service, Req, Resp> MethodDescriptor<Service, Req, Resp>.handle(
+    private suspend fun <Service, Req, Resp, Err> MethodDescriptor<Service, Req, Resp, Err>.handle(
         implementation: Service,
         call: Call
-    ): EncodableMessage<Resp> {
+    ): EncodableMessage<Response<Resp, Err>> {
         val request = call.readRequest(json, requestDeserializer)
-        val response = handler(implementation, KrpcMessage(request, Metadata.fromHttpHeaders(call.headers)), interceptor)
-        return EncodableMessage(response.metadata.toHttpHeaders(), response.value, responseSerializer, json)
+        val metadata = Metadata.fromHttpHeaders(call.headers)
+
+        val response = interceptor?.intercept(info, request, metadata) { request, metadata ->
+            handler(implementation, request, metadata)
+        } ?: handler(implementation, request, metadata)
+        return EncodableMessage(response.metadata.toHttpHeaders(), response, responseSerializer, json)
     }
 
     fun createGenericError(code: ErrorCode, message: String): EncodableMessage<*> {
-        return EncodableMessage(emptyMap(), GenericErrorResponse(ResponseError(code, message)), GenericErrorResponse.serializer(), json)
+        return EncodableMessage(emptyMap(), Error(code, message), ResponseSerializer(Unit.serializer(), Unit.serializer()), json)
     }
 }
 
@@ -105,35 +105,35 @@ private fun <T> RegisteredService<T>.toHandlerMap(): Map<String, ImplementationW
     }.mapValues { ImplementationWithMethod(implementation, it.value) }
 }
 
-data class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T, *, *>>)
+data class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T, *, *, *>>)
 
-fun <T> ServiceDescriptor<T>.path(method: MethodDescriptor<T, *, *>) = "$name/${method.name}"
+fun <T> ServiceDescriptor<T>.path(method: MethodDescriptor<T, *, *, *>) = "$name/${method.name}"
 
 class MethodInfo(val name: String)
-
-typealias KrpcRequest<T> = KrpcMessage<T>
 
 interface UnaryServerInterceptor {
     suspend fun <Req, Resp, Err> intercept(
         info: MethodInfo,
-        request: KrpcRequest<Req>,
-        next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>
+        request: Req,
+        metadata: Metadata,
+        next: suspend (Req, Metadata) -> Response<Resp, Err>
     ): Response<Resp, Err>
 }
 
 class ChainUnaryServerInterceptor(private val interceptors: List<UnaryServerInterceptor>) : UnaryServerInterceptor {
     override suspend fun <Req, Resp, Err> intercept(
         info: MethodInfo,
-        request: KrpcRequest<Req>,
-        next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>
+        request: Req,
+        metadata: Metadata,
+        next: suspend (Req, Metadata) -> Response<Resp, Err>
     ): Response<Resp, Err> {
         val chain = interceptors.foldRight(next) { interceptor, acc ->
-            { request ->
-                interceptor.intercept(info, request, acc)
+            { request, metadata ->
+                interceptor.intercept(info, request, metadata, acc)
             }
         }
 
-        return chain(request)
+        return chain(request, metadata)
     }
 }
 

@@ -27,8 +27,8 @@ object Implementation : TestService {
         return Error(ErrorCode.INTERNAL, "we got an error chief", CustomError(123))
     }
 
-    override suspend fun third(name: String, number: Int, more: Float): Response<List<String>, CustomError> {
-        return Success(listOf(name, "$number"))
+    override suspend fun third(name: String, number: Int, more: Float): Response<List<List<String>>, CustomError> {
+        return Success(listOf(listOf(name, "$number")))
     }
 
     @OptIn(ExperimentalStdlibApi::class)
@@ -44,11 +44,12 @@ object Implementation : TestService {
 object PrintInterceptor : UnaryServerInterceptor, UnaryClientInterceptor {
     override suspend fun <Req, Resp, Err> intercept(
         info: MethodInfo,
-        request: KrpcRequest<Req>,
-        next: suspend (KrpcRequest<Req>) -> Response<Resp, Err>
+        request: Req,
+        metadata: Metadata,
+        next: suspend (Req, Metadata) -> Response<Resp, Err>
     ): Response<Resp, Err> {
-        println("Request: $request")
-        val response = next(request).also {
+        println("Request: $request with $metadata")
+        val response = next(request, metadata).also {
             println("Response: $it")
         }
         return response.withMetadata(Metadata(response.metadata.values.mapValues { (_, value) -> value.uppercase(Locale.getDefault()) }))
