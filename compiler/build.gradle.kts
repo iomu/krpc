@@ -17,6 +17,7 @@ dependencies {
     implementation(libs.ksp.api)
     implementation(libs.kotlinpoet.core)
     implementation(libs.kotlinpoet.ksp)
+    implementation(project(":core"))
     implementation(project(":runtime"))
 
     testImplementation(kotlin("test"))

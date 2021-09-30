@@ -5,6 +5,7 @@ import com.google.devtools.ksp.symbol.*
 import com.squareup.kotlinpoet.*
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.ksp.*
+import dev.jomu.krpc.*
 import dev.jomu.krpc.runtime.*
 import java.util.*
 
@@ -269,7 +270,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
             val interceptorType = UnaryClientInterceptor::class.asTypeName().copy(nullable = true)
             primaryConstructor(
                 FunSpec.constructorBuilder()
-                    .addParameter("client", KrpcClient::class)
+                    .addParameter("client", KrpcHttpClient::class)
                     .addParameter("baseUrl", String::class)
                     .addParameter(ParameterSpec.builder("interceptor", interceptorType).defaultValue("null").build())
                     .build()
@@ -309,7 +310,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                                 "val requestMetadata = ${metadataParameterName ?: "%M()"}",
                                 *(if (metadataParameterName == null) listOf(
                                     MemberName(
-                                        "dev.jomu.krpc.runtime",
+                                        "dev.jomu.krpc",
                                         "emptyMetadata"
                                     )
                                 ) else emptyList()).toTypedArray()

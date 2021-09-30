@@ -1,7 +1,5 @@
 plugins {
     kotlin("multiplatform")
-    id("maven-publish")
-    alias(libs.plugins.kotlin.serialization)
 }
 
 repositories {
@@ -24,18 +22,8 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                api(project(":core"))
                 implementation(libs.kotlin.stdlib)
-                implementation(libs.kotlin.serialization.json)
-                api(libs.kotlin.serialization.json)
             }
         }
-        val commonTest by getting {
-            dependencies {
-                implementation(kotlin("test-common"))
-                implementation(kotlin("test-annotations-common"))
-            }
-        }
-        val jvmMain by getting
     }
 }

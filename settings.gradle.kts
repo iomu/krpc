@@ -14,6 +14,7 @@ plugins {
 enableFeaturePreview("VERSION_CATALOGS")
 
 include("compiler")
+include("core")
 include("sample")
 include("runtime")
 include(":integration:client-ktor")

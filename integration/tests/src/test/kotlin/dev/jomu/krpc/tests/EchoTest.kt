@@ -1,6 +1,7 @@
 package dev.jomu.krpc.tests
 
 import dev.jomu.krpc.runtime.*
+import dev.jomu.krpc.*
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockWebServer

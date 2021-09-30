@@ -3,15 +3,14 @@ package dev.jomu.krpc.runtime
 import io.ktor.client.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.http.*
 import io.ktor.util.*
 import io.ktor.utils.io.*
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
 
-class KtorClient(private val client: HttpClient) : KrpcClient {
-    override suspend fun executeUnaryCall(url: String, message: EncodableMessage<*>): Call {
+class KtorClient(private val client: HttpClient) : KrpcHttpClient {
+    override suspend fun post(url: String, message: EncodableMessage<*>): Call {
         val response = client.post<HttpResponse>(url) {
             body = message.encode(JsonStringEncoder)
             headers {
@@ -40,8 +39,3 @@ private object JsonStringEncoder : JsonEncoder<String> {
         return json.encodeToString(serializer, value)
     }
 }
-
-fun Headers.toMetadata(): Metadata = Metadata(toMap()
-    .mapValues { (_, value) -> value.first() }
-    .filterKeys { it.startsWith("krpc-") }
-    .mapKeys { (value, _) -> value.removePrefix("krpc-") })
