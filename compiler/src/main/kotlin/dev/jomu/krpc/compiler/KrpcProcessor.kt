@@ -40,7 +40,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
             val packageName = service.declaration.packageName.asString()
             val fileBuilder = FileSpec.builder(packageName, "${service.name}Krpc")
 
-            val serviceDescriptor = generateServiceDescriptor(service, specs)
+            val (serviceDescriptor, registerFunc) = generateServiceDescriptor(service, specs)
 
             val client = generateClient(service, specs)
 
@@ -49,6 +49,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                 fileBuilder.addFunction(it.handler)
             }
             fileBuilder.addProperty(serviceDescriptor)
+            fileBuilder.addFunction(registerFunc)
             fileBuilder.addType(client)
 
             return@map fileBuilder.build()
@@ -160,7 +161,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         return funSpec.build()
     }
 
-    private fun generateServiceDescriptor(service: Service, specs: List<GeneratedSpecs>): PropertySpec {
+    private fun generateServiceDescriptor(service: Service, specs: List<GeneratedSpecs>): Pair<PropertySpec, FunSpec> {
         val initializer = buildCodeBlock {
             addStatement("%T(", ServiceDescriptor::class)
             withIndent {
@@ -195,10 +196,19 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         val type = ServiceDescriptor::class.asClassName().parameterizedBy(service.declaration.toClassName())
         val propertySpec = PropertySpec.builder(name, type)
             .initializer(initializer)
+            .addModifiers(KModifier.PRIVATE)
 
         service.declaration.containingFile?.let { propertySpec.addOriginatingKSFile(it) }
 
-        return propertySpec.build()
+        val function = FunSpec.builder("register${service.name}").apply {
+            receiver(KrpcServerBuilder::class)
+
+            addParameter("implementation", service.declaration.toClassName())
+
+            addStatement("addService($name, implementation)", )
+        }.build()
+
+        return propertySpec.build() to function
     }
 
     private fun generateClient(service: Service, specs: List<GeneratedSpecs>): TypeSpec {
