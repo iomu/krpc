@@ -1,3 +1,3 @@
-package dev.jomu.krpc.runtime
+package dev.jomu.krpc
 
 annotation class KrpcService

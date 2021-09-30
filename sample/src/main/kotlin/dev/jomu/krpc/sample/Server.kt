@@ -1,5 +1,6 @@
 package dev.jomu.krpc.sample
 
+import dev.jomu.krpc.*
 import dev.jomu.krpc.runtime.*
 import io.ktor.routing.*
 import io.ktor.server.engine.*
@@ -20,20 +21,20 @@ fun main() {
 
 object Implementation : TestService {
     override suspend fun hello(name: String, metadata: Metadata): Response<String, Unit> {
-        return Success("Hello, $name!", metadata = metadata)
+        return Response.Success("Hello, $name!", metadata = metadata)
     }
 
     override suspend fun second(name: String, number: Int): Response<String, CustomError> {
-        return Error(ErrorCode.INTERNAL, "we got an error chief", CustomError(123))
+        return Response.Error(ErrorCode.INTERNAL, "we got an error chief", CustomError(123))
     }
 
     override suspend fun third(name: String, number: Int, more: Float): Response<List<List<String>>, CustomError> {
-        return Success(listOf(listOf(name, "$number")))
+        return Response.Success(listOf(listOf(name, "$number")))
     }
 
     @OptIn(ExperimentalStdlibApi::class)
     override suspend fun generic(value: String, count: Int): Response<List<String>, Unit> {
-        return Success(buildList {
+        return Response.Success(buildList {
             for (i in 1..count) {
                 add(value)
             }
@@ -41,7 +42,7 @@ object Implementation : TestService {
     }
 }
 
-object PrintInterceptor : UnaryServerInterceptor, UnaryClientInterceptor {
+object PrintInterceptor : UnaryServerInterceptor {
     override suspend fun <Req, Resp, Err> intercept(
         info: MethodInfo<Req, Resp, Err>,
         request: Req,

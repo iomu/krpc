@@ -1,7 +1,6 @@
 package dev.jomu.krpc.runtime
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -18,8 +17,8 @@ import java.io.OutputStream
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcClient {
-    override suspend fun executeUnaryCall(url: String, message: EncodableMessage<*>): Call {
+class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcHttpClient {
+    override suspend fun post(url: String, message: EncodableMessage<*>): Call {
         val headers = Headers.Builder().apply {
             message.headers.forEach { (key, value) ->
                 add(key, value)

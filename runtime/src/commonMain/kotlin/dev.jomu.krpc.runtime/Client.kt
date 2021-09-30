@@ -1,23 +1,19 @@
 package dev.jomu.krpc.runtime
 
+import dev.jomu.krpc.ErrorCode
+import dev.jomu.krpc.Metadata
+import dev.jomu.krpc.Response.Error
+import dev.jomu.krpc.Response
+import dev.jomu.krpc.withMetadata
 import kotlinx.serialization.json.Json
 
 
-interface KrpcClient {
-    suspend fun executeUnaryCall(url: String, message: EncodableMessage<*>): Call
-}
-
-interface UnaryClientInterceptor {
-    suspend fun <Req, Resp, Err> intercept(
-        info: MethodInfo<Req, Resp, Err>,
-        request: Req,
-        metadata: Metadata,
-        next: suspend (Req, Metadata) -> Response<Resp, Err>
-    ): Response<Resp, Err>
+interface KrpcHttpClient {
+    suspend fun post(url: String, message: EncodableMessage<*>): Call
 }
 
 open class BaseKrpcClient(
-    private val client: KrpcClient,
+    private val client: KrpcHttpClient,
     private val baseUrl: String,
     private val interceptor: UnaryClientInterceptor?
 ) {
@@ -34,9 +30,9 @@ open class BaseKrpcClient(
                 metadata.toHttpHeaders(), request,
                 info.requestSerializer, json
             )
-            val result = client.executeUnaryCall(url, message)
+            val result = client.post(url, message)
 
-            val metadata = Metadata.fromHttpHeaders(result.headers)
+            val metadata = metadataFromHttpHeaders(result.headers)
 
             result.readRequest(json, info.responseSerializer).withMetadata(metadata)
         }

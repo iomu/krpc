@@ -1,8 +1,8 @@
 package dev.jomu.krpc.sample
 
-import dev.jomu.krpc.runtime.KrpcService
-import dev.jomu.krpc.runtime.Metadata
-import dev.jomu.krpc.runtime.Response
+import dev.jomu.krpc.KrpcService
+import dev.jomu.krpc.Metadata
+import dev.jomu.krpc.Response
 import kotlinx.serialization.Serializable
 
 @Serializable
