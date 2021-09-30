@@ -18,19 +18,20 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
 
         val services = serviceDeclarations.map { decl ->
             val endpoints =
-                decl.getAllFunctions().filter { it.modifiers.contains(Modifier.SUSPEND) }.map { Endpoint(it) }
+                decl.getAllFunctions().filter { it.modifiers.contains(Modifier.SUSPEND) }.map {
+                    val (successType, errorDetails) = resolveResponseTypes(it)
+                    Endpoint(it, successType, errorDetails)
+                }
             Service(decl, endpoints)
         }
 
         val generated = services.associateWith { service ->
             service.endpoints.map {
                 val request = generateRequestWrappers(service, it)
-                val (response, responseError) = generateResponseWrappers(service, it)
                 GeneratedSpecs(
                     it,
                     request = request,
-                    response = response,
-                    handler = generateRequestHandlers(service, it, request, response, responseError),
+                    handler = generateRequestHandlers(service, it, request),
                 )
             }.toList()
         }
@@ -45,7 +46,6 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
 
             specs.forEach {
                 fileBuilder.addType(it.request)
-                fileBuilder.addType(it.response)
                 fileBuilder.addFunction(it.handler)
             }
             fileBuilder.addProperty(serviceDescriptor)
@@ -83,86 +83,47 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         return requestType.build()
     }
 
-    fun generateResponseWrappers(service: Service, endpoint: Endpoint): Pair<TypeSpec, TypeName> {
-        val name =
-            "${service.name}${endpoint.name.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }}Response"
-        val responseType = TypeSpec
-            .classBuilder(name)
-            .addModifiers(KModifier.PRIVATE)
-            .addAnnotation(ClassName("kotlinx.serialization", "Serializable"))
-
-        responseType.addModifiers(KModifier.PRIVATE)
-        val constructor = FunSpec.constructorBuilder()
-
-        val returnType = endpoint.declaration.returnType?.resolve()
+    fun resolveResponseTypes(declaration: KSFunctionDeclaration): Pair<KSType, KSType> {
+        val returnType = declaration.returnType?.resolve()
         if (returnType == null) {
-            logger.error("function has no return type", endpoint.declaration)
+            logger.error("function has no return type", declaration)
             error("TODO clean this up")
         }
 
         if (returnType.declaration.qualifiedName?.asString() != Response::class.qualifiedName) {
-            logger.error("endpoints must return a ${Response::class.qualifiedName}", endpoint.declaration)
+            logger.error("endpoints must return a ${Response::class.qualifiedName}", declaration)
             error("TODO clean this up")
         }
 
         if (returnType.nullability == Nullability.NULLABLE) {
-            logger.error("return type is nullable", endpoint.declaration)
+            logger.error("return type is nullable", declaration)
             error("TODO clean this up")
         }
 
-        val successType = returnType.arguments[0].type?.resolve()?.toTypeName()
+        val successType = returnType.arguments[0].type?.resolve()
         if (successType == null) {
-            logger.error("could not resolve return type argument", endpoint.declaration)
+            logger.error("could not resolve return type argument", declaration)
             error("TODO clean this up")
         }
 
-        val errorType = returnType.arguments[1].type?.resolve()?.toTypeName()
+        val errorType = returnType.arguments[1].type?.resolve()
         if (errorType == null) {
-            logger.error("could not resolve return type argument", endpoint.declaration)
+            logger.error("could not resolve return type argument", declaration)
             error("TODO clean this up")
         }
 
-        constructor.addParameter(
-            ParameterSpec.builder("success", successType.copy(nullable = true), KModifier.INTERNAL).defaultValue("null")
-                .build()
-        )
-        responseType.addProperty(
-            PropertySpec.builder("success", successType.copy(nullable = true), KModifier.INTERNAL)
-                .initializer("success").build()
-        )
-
-
-        val errorClassName = ResponseError::class.asTypeName()
-            .parameterizedBy(errorType)
-        constructor.addParameter(
-            ParameterSpec.builder(
-                "error",
-                errorClassName.copy(nullable = true),
-                KModifier.INTERNAL
-            ).defaultValue("null").build()
-        )
-        responseType.addProperty(
-            PropertySpec.builder("error", errorClassName.copy(nullable = true), KModifier.INTERNAL).initializer("error")
-                .build()
-        )
-
-
-        responseType.primaryConstructor(constructor.build())
-
-        service.declaration.containingFile?.let { responseType.addOriginatingKSFile(it) }
-
-        return responseType.build() to errorClassName
+        return successType to errorType
     }
 
     fun generateRequestHandlers(
         service: Service,
         endpoint: Endpoint,
         request: TypeSpec,
-        response: TypeSpec,
-        responseError: TypeName
     ): FunSpec {
         val requestTypeName = ClassName(service.declaration.packageName.asString(), request.name!!)
-        val responseTypeName = ClassName(service.declaration.packageName.asString(), response.name!!)
+
+        // TODO: add to endpoint
+        val returnType = Response::class.asTypeName().parameterizedBy(endpoint.responseSuccessType.toTypeName(), endpoint.responseErrorType.toTypeName())
         val funSpec = FunSpec.builder(
             "handle${service.name}${
                 endpoint.name.replaceFirstChar {
@@ -172,9 +133,9 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
         )
             .addModifiers(KModifier.SUSPEND, KModifier.PRIVATE)
             .addParameter("service", service.declaration.toClassName())
-            .addParameter("message", KrpcMessage::class.asTypeName().parameterizedBy(requestTypeName))
-            .addParameter("interceptor", UnaryServerInterceptor::class.asTypeName().copy(nullable = true))
-            .returns(KrpcMessage::class.asTypeName().parameterizedBy(responseTypeName))
+            .addParameter("request", requestTypeName)
+            .addParameter("metadata", Metadata::class)
+            .returns(returnType)
 
         val parameterNames = endpoint.declaration.parameters.mapNotNull { it.name?.asString() }
 
@@ -188,29 +149,9 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
 
         val metadataIndex = metadataParameters.firstOrNull()?.first ?: -1
         funSpec.apply {
-            addStatement("val request = message.value", request)
-            beginControlFlow(
-                "val response = interceptor?.intercept(%T(%S), message) {",
-                MethodInfo::class,
-                "${service.declaration.qualifiedName?.asString()}/${endpoint.name}"
-            )
-            val wrappedArguments = parameterNames.mapIndexed { index, name -> index to name }
-                .joinToString(separator = ", ") { if (it.first == metadataIndex) "message.metadata" else "it.value.${it.second}" }
-            addStatement("service.${endpoint.name}($wrappedArguments)")
-            endControlFlow()
             val arguments = parameterNames.mapIndexed { index, name -> index to name }
-                .joinToString(separator = ", ") { if (it.first == metadataIndex) "message.metadata" else "request.${it.second}" }
-            addStatement("?: service.${endpoint.name}($arguments)")
-            beginControlFlow("val result = when (response) {")
-            addStatement("is %T -> %N(success = response.result)", Success::class, response)
-            addStatement(
-                "is %T -> %N(error = %T(response.code, response.message, response.details,))",
-                Error::class,
-                response,
-                responseError
-            )
-            endControlFlow()
-            addStatement("return %T(result, response.metadata)", KrpcMessage::class)
+                .joinToString(separator = ", ") { if (it.first == metadataIndex) "metadata" else "request.${it.second}" }
+            addStatement("return service.${endpoint.name}($arguments)")
         }
 
         service.declaration.containingFile?.let { funSpec.addOriginatingKSFile(it) }
@@ -230,6 +171,7 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                         addStatement("%T(", MethodDescriptor::class)
                         withIndent {
                             addStatement("%S,", endpoint.endpoint.name)
+                            addStatement("info = %T(%S),", MethodInfo::class, "${service.declaration.qualifiedName?.asString()}/${endpoint.endpoint.name}")
                             addStatement(
                                 "handler = %L,",
                                 MemberName(
@@ -238,7 +180,9 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                                 ).reference()
                             )
                             addStatement("requestDeserializer = %N.serializer(),", endpoint.request)
-                            addStatement("responseSerializer = %N.serializer(),", endpoint.response)
+                            val (successFormat, successArgs) = generateSerializerFactory(endpoint.endpoint.responseSuccessType)
+                            val (errorFormat, errorArgs) = generateSerializerFactory(endpoint.endpoint.responseErrorType)
+                            addStatement("responseSerializer = %T($successFormat, $errorFormat)", ResponseSerializer::class, *successArgs.toTypedArray(), *errorArgs.toTypedArray())
                         }
                         addStatement("),")
                     }
@@ -269,6 +213,11 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                     .addParameter(ParameterSpec.builder("interceptor", interceptorType).defaultValue("null").build())
                     .build()
             )
+
+            superclass(BaseKrpcClient::class)
+            addSuperclassConstructorParameter("client")
+            addSuperclassConstructorParameter("baseUrl")
+            addSuperclassConstructorParameter("interceptor")
 
             addProperty(
                 PropertySpec.builder("client", KrpcClient::class, KModifier.PRIVATE).initializer("client").build()
@@ -305,52 +254,14 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                         val metadataParameterName = metadataParameters.firstOrNull()?.second?.name?.asString()
                         val path = "${service.declaration.qualifiedName?.asString()}/${endpoint.endpoint.name}"
 
-                        val pkg = service.declaration.packageName.asString()
-                        val returnTypeClassName = ClassName(pkg, endpoint.request.name!!)
                         addCode(buildCodeBlock {
-                            addStatement("val url = %P", "\${baseUrl}/$path")
+
                             val parameters =
                                 endpoint.endpoint.declaration.parameters.filter { !it.type.isClass(Metadata::class) }
                                     .mapNotNull { it.name?.asString() }.joinToString(", ")
-                            addStatement("val krpcRequest = %N($parameters)", endpoint.request)
-                            addStatement("")
-                            beginControlFlow(
-                                "val execute: %T = { request ->",
-                                LambdaTypeName.get(
-                                    null,
-                                    listOf(
-                                        ParameterSpec.Companion.unnamed(
-                                            KrpcRequest::class.asTypeName().parameterizedBy(returnTypeClassName)
-                                        )
-                                    ),
-                                    returnType
-                                ).copy(suspending = true)
-                            )
+                            addStatement("val request = %N($parameters)", endpoint.request)
                             addStatement(
-                                "val message = %T(request.metadata.%M(), request.value, %N.serializer(), json)",
-                                EncodableMessage::class,
-                                MemberName("dev.jomu.krpc.runtime", "toHttpHeaders"),
-                                endpoint.request
-                            )
-                            addStatement("val result = client.executeUnaryCall(url, message)")
-                            addStatement("")
-                            addStatement("val metadata = %T.fromHttpHeaders(result.headers)", Metadata::class)
-                            addStatement("")
-                            addStatement("val response = result.readRequest(json, %N.serializer())", endpoint.response)
-                            addStatement("")
-                            beginControlFlow("if (response.success != null) {")
-                            addStatement("%T(response.success, metadata)", Success::class)
-                            nextControlFlow("else")
-                            addStatement(
-                                "%T(response.error!!.code, response.error.message, response.error.details, metadata)",
-                                Error::class
-                            )
-                            endControlFlow()
-                            endControlFlow()
-                            beginControlFlow("return try {")
-                            addStatement(
-                                "val request = %T(krpcRequest, ${metadataParameterName ?: "%M()"})",
-                                KrpcRequest::class,
+                                "val requestMetadata = ${metadataParameterName ?: "%M()"}",
                                 *(if (metadataParameterName == null) listOf(
                                     MemberName(
                                         "dev.jomu.krpc.runtime",
@@ -358,13 +269,36 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
                                     )
                                 ) else emptyList()).toTypedArray()
                             )
+
+                            addStatement("")
+
+                            val (successFormat, successArgs) = generateSerializerFactory(endpoint.endpoint.responseSuccessType)
                             addStatement(
-                                "interceptor?.intercept(MethodInfo(%S), request, execute) ?: execute(request)",
-                                path
+                                "val successSerializer = $successFormat",
+                                *successArgs.toTypedArray()
                             )
-                            nextControlFlow("catch (e: Throwable) ")
-                            addStatement("Error(%T.INTERNAL, e.message ?: \"<internal error>\")", ErrorCode::class)
-                            endControlFlow()
+                            val (errorFormat, errorArgs) = generateSerializerFactory(endpoint.endpoint.responseErrorType)
+                            addStatement(
+                                "val errorSerializer = $errorFormat",
+                                *errorArgs.toTypedArray()
+                            )
+                            addStatement(
+                                "val responseDeserializer = %T(successSerializer, errorSerializer)",
+                                ResponseSerializer::class
+                            )
+
+                            addStatement("")
+
+                            addStatement("return executeUnaryCall(")
+                            withIndent {
+                                addStatement("%S,", path)
+                                addStatement("%T(%S),", MethodInfo::class, path)
+                                addStatement("request,")
+                                addStatement("requestMetadata,")
+                                addStatement("%N.serializer(),", endpoint.request)
+                                addStatement("responseDeserializer,", endpoint.request)
+                            }
+                            addStatement(")")
                         })
                     }
                         .build()
@@ -373,17 +307,37 @@ class KrpcProcessor(private val codeGenerator: CodeGenerator, private val logger
             service.declaration.containingFile?.let { addOriginatingKSFile(it) }
         }.build()
     }
+
+    private fun generateSerializerFactory(type: KSType): Pair<String, List<Any?>> {
+        val serializerFunc = MemberName("kotlinx.serialization.builtins", "serializer")
+        return when {
+
+            type.isAssignableFrom(List::class) -> {
+                val (elementFormat, elementArgs) = generateSerializerFactory(type.arguments.first().type?.resolve()!!)
+                "%M($elementFormat)" to listOf(
+                    MemberName("kotlinx.serialization.builtins", "ListSerializer"),
+                    *elementArgs.toTypedArray()
+                )
+            }
+            else -> "%T.%M()" to listOf(type.toTypeName(), serializerFunc)
+        }
+    }
 }
+
 
 class Service(val declaration: KSClassDeclaration, val endpoints: Sequence<Endpoint>)
 
 val Service.name
     get() = declaration.shortName
 
-class Endpoint(val declaration: KSFunctionDeclaration)
+class Endpoint(
+    val declaration: KSFunctionDeclaration,
+    val responseSuccessType: KSType,
+    val responseErrorType: KSType
+)
 
 val Endpoint.name
     get() = declaration.simpleName.asString()
 
-class GeneratedSpecs(val endpoint: Endpoint, val request: TypeSpec, val response: TypeSpec, val handler: FunSpec)
+class GeneratedSpecs(val endpoint: Endpoint, val request: TypeSpec, val handler: FunSpec)
 

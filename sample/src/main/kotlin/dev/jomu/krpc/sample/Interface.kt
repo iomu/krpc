@@ -16,5 +16,5 @@ interface GenericBase<T> {
 interface TestService : GenericBase<String> {
     suspend fun hello(name: String, metadata: Metadata): Response<String, Unit>
     suspend fun second(name: String, number: Int): Response<String, CustomError>
-    suspend fun third(name: String, number: Int, more: Float): Response<List<String>, CustomError>
+    suspend fun third(name: String, number: Int, more: Float): Response<List<List<String>>, CustomError>
 }
