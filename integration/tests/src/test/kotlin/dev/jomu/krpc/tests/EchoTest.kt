@@ -46,7 +46,7 @@ internal class EchoTest {
 
     private fun testEchoService(implementation: EchoService, block: suspend (client: EchoService) -> Unit) {
         val krpcServer = buildKrpcServer {
-            addService(echoServiceDescriptor, implementation)
+            registerEchoService(implementation)
         }
 
         val dispatcher = KrpcDispatcher(krpcServer)

@@ -8,7 +8,7 @@ import java.util.*
 
 fun main() {
     val server = buildKrpcServer {
-        addService(testServiceDescriptor, Implementation)
+        registerTestService(Implementation)
         addInterceptor(PrintInterceptor)
     }
     embeddedServer(Netty, port = 8080, host = "0.0.0.0") {
