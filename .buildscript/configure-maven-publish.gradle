@@ -1,0 +1,10 @@
+apply plugin: 'com.vanniktech.maven.publish'
+
+group = GROUP
+version = VERSION_NAME
+
+plugins.withId("com.vanniktech.maven.publish") {
+    mavenPublish {
+        sonatypeHost = "S01"
+    }
+}

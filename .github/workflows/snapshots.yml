@@ -1,0 +1,28 @@
+name: Snapshot release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    name: Publish Snapshot Release
+    runs-on: ubuntu-latest
+    if: github.repository == 'iomu/krpc' && github.ref == 'refs/heads/main'
+
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v2
+      - uses: gradle/wrapper-validation-action@v1
+      - name: set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'zulu'
+          java-version: 11
+
+      - name: Publish snapshot release
+        run: ./gradlew publish --no-parallel --no-daemon
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.SONATYPE_NEXUS_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.SONATYPE_NEXUS_PASSWORD }}

@@ -1,11 +1,9 @@
 plugins {
     id("java-library")
     kotlin("jvm")
-    id("maven-publish")
 }
 
-group = "dev.jomu.krpc"
-version = "0.1.5"
+apply(from = rootProject.file(".buildscript/configure-maven-publish.gradle"))
 
 repositories {
     mavenCentral()
@@ -17,12 +15,4 @@ dependencies {
     api(libs.okhttp.core)
     implementation(libs.kotlin.coroutines.core)
     implementation(libs.kotlin.serialization.json)
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("client-okhttp") {
-            from(components["java"])
-        }
-    }
 }
