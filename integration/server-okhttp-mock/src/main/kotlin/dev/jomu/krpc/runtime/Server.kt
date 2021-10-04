@@ -11,7 +11,7 @@ import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.RecordedRequest
 
-class KrpcDispatcher(val server: KrpcServer) : Dispatcher() {
+class KrpcDispatcher(private val server: KrpcServer) : Dispatcher() {
     override fun dispatch(request: RecordedRequest): MockResponse {
         return runBlocking {
             val response = server.handleRequest(request.path.orEmpty(), OkHttpServerCall(request))

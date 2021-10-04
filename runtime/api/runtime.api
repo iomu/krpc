@@ -8,20 +8,10 @@ public abstract interface class dev/jomu/krpc/runtime/Call {
 	public abstract fun readRequest (Lkotlinx/serialization/json/Json;Lkotlinx/serialization/DeserializationStrategy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public final class dev/jomu/krpc/runtime/ChainUnaryServerInterceptor : dev/jomu/krpc/runtime/UnaryServerInterceptor {
-	public fun <init> (Ljava/util/List;)V
-	public fun intercept (Ldev/jomu/krpc/runtime/MethodInfo;Ljava/lang/Object;Ldev/jomu/krpc/Metadata;Lkotlin/jvm/functions/Function3;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
 public final class dev/jomu/krpc/runtime/EncodableMessage {
 	public fun <init> (Ljava/util/Map;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Lkotlinx/serialization/json/Json;)V
 	public final fun encode (Ldev/jomu/krpc/runtime/JsonEncoder;)Ljava/lang/Object;
 	public final fun getHeaders ()Ljava/util/Map;
-}
-
-public final class dev/jomu/krpc/runtime/HeadersKt {
-	public static final fun metadataFromHttpHeaders (Ljava/util/Map;)Ldev/jomu/krpc/Metadata;
-	public static final fun toHttpHeaders (Ldev/jomu/krpc/Metadata;)Ljava/util/Map;
 }
 
 public abstract interface class dev/jomu/krpc/runtime/JsonEncoder {

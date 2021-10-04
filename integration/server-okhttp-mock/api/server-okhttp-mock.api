@@ -1,6 +1,5 @@
 public final class dev/jomu/krpc/runtime/KrpcDispatcher : okhttp3/mockwebserver/Dispatcher {
 	public fun <init> (Ldev/jomu/krpc/runtime/KrpcServer;)V
 	public fun dispatch (Lokhttp3/mockwebserver/RecordedRequest;)Lokhttp3/mockwebserver/MockResponse;
-	public final fun getServer ()Ldev/jomu/krpc/runtime/KrpcServer;
 }
 

@@ -14,7 +14,7 @@ interface UnaryServerInterceptor {
 
 typealias UnaryClientInterceptor = UnaryServerInterceptor
 
-class ChainUnaryServerInterceptor(private val interceptors: List<UnaryServerInterceptor>) : UnaryServerInterceptor {
+internal class ChainUnaryServerInterceptor(private val interceptors: List<UnaryServerInterceptor>) : UnaryServerInterceptor {
     override suspend fun <Req, Resp, Err> intercept(
         info: MethodInfo<Req, Resp, Err>,
         request: Req,
