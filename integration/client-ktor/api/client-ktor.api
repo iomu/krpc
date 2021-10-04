@@ -1,0 +1,5 @@
+public final class dev/jomu/krpc/runtime/KtorClient : dev/jomu/krpc/runtime/KrpcHttpClient {
+	public fun <init> (Lio/ktor/client/HttpClient;)V
+	public fun post (Ljava/lang/String;Ldev/jomu/krpc/runtime/EncodableMessage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+

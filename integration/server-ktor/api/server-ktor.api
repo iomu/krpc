@@ -1,0 +1,5 @@
+public final class dev/jomu/krpc/runtime/KtorKt {
+	public static final fun registerServer (Lio/ktor/routing/Routing;Ldev/jomu/krpc/runtime/KrpcServer;Ljava/lang/String;)V
+	public static synthetic fun registerServer$default (Lio/ktor/routing/Routing;Ldev/jomu/krpc/runtime/KrpcServer;Ljava/lang/String;ILjava/lang/Object;)V
+}
+
