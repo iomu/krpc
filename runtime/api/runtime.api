@@ -1,0 +1,69 @@
+public class dev/jomu/krpc/runtime/BaseKrpcClient {
+	public fun <init> (Ldev/jomu/krpc/runtime/KrpcHttpClient;Ljava/lang/String;Ldev/jomu/krpc/runtime/UnaryServerInterceptor;)V
+	protected final fun executeUnaryCall (Ldev/jomu/krpc/runtime/MethodInfo;Ljava/lang/Object;Ldev/jomu/krpc/Metadata;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class dev/jomu/krpc/runtime/Call {
+	public abstract fun getHeaders ()Ljava/util/Map;
+	public abstract fun readRequest (Lkotlinx/serialization/json/Json;Lkotlinx/serialization/DeserializationStrategy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/jomu/krpc/runtime/EncodableMessage {
+	public fun <init> (Ljava/util/Map;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Lkotlinx/serialization/json/Json;)V
+	public final fun encode (Ldev/jomu/krpc/runtime/JsonEncoder;)Ljava/lang/Object;
+	public final fun getHeaders ()Ljava/util/Map;
+}
+
+public abstract interface class dev/jomu/krpc/runtime/JsonEncoder {
+	public abstract fun encode (Lkotlinx/serialization/json/Json;Lkotlinx/serialization/SerializationStrategy;Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class dev/jomu/krpc/runtime/KrpcHttpClient {
+	public abstract fun post (Ljava/lang/String;Ldev/jomu/krpc/runtime/EncodableMessage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class dev/jomu/krpc/runtime/KrpcServer {
+	public abstract fun handleRequest (Ljava/lang/String;Ldev/jomu/krpc/runtime/Call;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/jomu/krpc/runtime/KrpcServerBuilder {
+	public fun <init> ()V
+	public final fun addInterceptor (Ldev/jomu/krpc/runtime/UnaryServerInterceptor;)V
+	public final fun addService (Ldev/jomu/krpc/runtime/ServiceDescriptor;Ljava/lang/Object;)V
+}
+
+public final class dev/jomu/krpc/runtime/MethodDescriptor {
+	public fun <init> (Ldev/jomu/krpc/runtime/MethodInfo;Lkotlin/jvm/functions/Function4;)V
+	public final fun getHandler ()Lkotlin/jvm/functions/Function4;
+	public final fun getInfo ()Ldev/jomu/krpc/runtime/MethodInfo;
+}
+
+public final class dev/jomu/krpc/runtime/MethodInfo {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlinx/serialization/KSerializer;Lkotlinx/serialization/KSerializer;)V
+	public final fun getName ()Ljava/lang/String;
+	public final fun getRequestSerializer ()Lkotlinx/serialization/KSerializer;
+	public final fun getResponseSerializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jomu/krpc/runtime/ResponseSerializer : kotlinx/serialization/KSerializer {
+	public fun <init> (Lkotlinx/serialization/KSerializer;Lkotlinx/serialization/KSerializer;)V
+	public fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ldev/jomu/krpc/Response;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public fun serialize (Lkotlinx/serialization/encoding/Encoder;Ldev/jomu/krpc/Response;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+}
+
+public final class dev/jomu/krpc/runtime/ServerKt {
+	public static final fun buildKrpcServer (Lkotlin/jvm/functions/Function1;)Ldev/jomu/krpc/runtime/KrpcServer;
+}
+
+public final class dev/jomu/krpc/runtime/ServiceDescriptor {
+	public fun <init> (Ljava/lang/String;Ljava/util/List;)V
+	public final fun getMethods ()Ljava/util/List;
+}
+
+public abstract interface class dev/jomu/krpc/runtime/UnaryServerInterceptor {
+	public abstract fun intercept (Ldev/jomu/krpc/runtime/MethodInfo;Ljava/lang/Object;Ldev/jomu/krpc/Metadata;Lkotlin/jvm/functions/Function3;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+

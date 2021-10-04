@@ -1,3 +1,8 @@
+plugins {
+    alias(libs.plugins.binaryCompatability)
+}
+
+
 buildscript {
     dependencies {
         classpath(libs.kotlin.gradle)
@@ -15,3 +20,6 @@ repositories {
     mavenCentral()
 }
 
+apiValidation {
+    ignoredProjects.addAll(listOf("compiler", "sample", "tests"))
+}
