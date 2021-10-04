@@ -1,7 +1,7 @@
 [versions]
 binaryCompatability = "0.8.0-RC"
 coroutines = "1.5.2"
-ktor = "1.6.3"
+ktor = "1.6.4"
 ksp = "1.5.31-1.0.0"
 kotlin = "1.5.31"
 kotlinpoet = "1.10.1"
