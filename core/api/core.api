@@ -1,10 +1,12 @@
 public final class dev/jomu/krpc/ErrorCode : java/lang/Enum {
+	public static final field DEADLINE_EXCEEDED Ldev/jomu/krpc/ErrorCode;
 	public static final field INTERNAL Ldev/jomu/krpc/ErrorCode;
 	public static final field INVALID_ARGUMENT Ldev/jomu/krpc/ErrorCode;
 	public static final field NOT_FOUND Ldev/jomu/krpc/ErrorCode;
 	public static final field PERMISSION_DENIED Ldev/jomu/krpc/ErrorCode;
 	public static final field UNAUTHENTICATED Ldev/jomu/krpc/ErrorCode;
 	public static final field UNIMPLEMENTED Ldev/jomu/krpc/ErrorCode;
+	public static final field UNKNOWN Ldev/jomu/krpc/ErrorCode;
 	public static fun valueOf (Ljava/lang/String;)Ldev/jomu/krpc/ErrorCode;
 	public static fun values ()[Ldev/jomu/krpc/ErrorCode;
 }

@@ -22,6 +22,15 @@ private class ResponseError<T>(
     val details: T? = null
 )
 
+/**
+ * A [KSerializer] for [Response] that serializes according to the kRPC protocol
+ *
+ * @param successSerializer
+ * Serializer for the success message
+ *
+ * @param errorSerializer
+ * Serializer for the [error details][Error.details]
+ */
 class ResponseSerializer<T, E>(private val successSerializer: KSerializer<T>, private val errorSerializer: KSerializer<E>) : KSerializer<Response<T, E>> {
     override val descriptor: SerialDescriptor = buildClassSerialDescriptor("Response") {
         element("success", successSerializer.descriptor, isOptional = true)
