@@ -18,7 +18,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcHttpClient {
-    override suspend fun post(url: String, message: EncodableMessage<*>): Call {
+    override suspend fun post(url: String, message: OutgoingMessage<*>): IncomingMessage {
         val headers = Headers.Builder().apply {
             message.headers.forEach { (key, value) ->
                 add(key, value)
@@ -34,14 +34,14 @@ class OkHttpKrpcClient(private val client: OkHttpClient) : KrpcHttpClient {
                 }
 
                 override fun writeTo(sink: BufferedSink) {
-                    message.encode(CallEncoder(sink.outputStream()))
+                    message.write(CallEncoder(sink.outputStream()))
                 }
             })
             .build()
 
         val response = client.newCall(request).await()
 
-        return OkHttpCall(response)
+        return OkHttpIncomingMessage(response)
     }
 }
 
@@ -52,9 +52,9 @@ private class CallEncoder(val stream: OutputStream) : JsonEncoder<Unit> {
     }
 }
 
-private class OkHttpCall(val response: Response) : Call {
+private class OkHttpIncomingMessage(val response: Response) : IncomingMessage {
     @OptIn(ExperimentalSerializationApi::class)
-    override suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T {
+    override suspend fun <T> read(json: Json, deserializer: DeserializationStrategy<T>): T {
         return json.decodeFromStream(deserializer, response.body?.byteStream() ?: error("no response body"))
     }
 

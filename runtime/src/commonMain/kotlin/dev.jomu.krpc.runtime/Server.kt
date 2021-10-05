@@ -17,7 +17,7 @@ class MethodDescriptor<Service, Req, Resp, Err>(
 class ServiceDescriptor<T>(internal val name: String, val methods: List<MethodDescriptor<T, *, *, *>>)
 
 interface KrpcServer {
-    suspend fun handleRequest(path: String, call: Call): EncodableMessage<*>
+    suspend fun handleRequest(path: String, incomingMessage: IncomingMessage): OutgoingMessage<*>
 }
 
 internal class RegisteredService<T>(val descriptor: ServiceDescriptor<T>, val implementation: T)
@@ -55,7 +55,7 @@ private class RealKrpcServer(
     private val interceptor = if (interceptors.isEmpty()) null else ChainUnaryServerInterceptor(interceptors)
     private val handlers = services.map { rs -> rs.toHandlerMap() }.fold(emptyMap<String, ImplementationWithMethod<*>>()) { a, b -> a + b }
 
-    override suspend fun handleRequest(path: String, call: Call): EncodableMessage<*> {
+    override suspend fun handleRequest(path: String, incomingMessage: IncomingMessage): OutgoingMessage<*> {
         val path = path.trimStart('/')
         if (path.isEmpty()) {
             return createGenericError(ErrorCode.INVALID_ARGUMENT, "Path may not be empty")
@@ -63,31 +63,31 @@ private class RealKrpcServer(
         val handler =
             handlers[path] ?: return createGenericError(ErrorCode.UNIMPLEMENTED, "$path not implemented")
         return try {
-            handler.handle(call)
+            handler.handle(incomingMessage)
         } catch (e: Exception) {
             createGenericError(ErrorCode.INTERNAL, e.message ?: "<internal error>")
         }
     }
 
-    private suspend fun <T> ImplementationWithMethod<T>.handle(call: Call): EncodableMessage<*> {
-        return method.handle(implementation, call)
+    private suspend fun <T> ImplementationWithMethod<T>.handle(incomingMessage: IncomingMessage): OutgoingMessage<*> {
+        return method.handle(implementation, incomingMessage)
     }
 
     private suspend fun <Service, Req, Resp, Err> MethodDescriptor<Service, Req, Resp, Err>.handle(
         implementation: Service,
-        call: Call
-    ): EncodableMessage<Response<Resp, Err>> {
-        val request = call.readRequest(json, info.requestSerializer)
-        val metadata = metadataFromHttpHeaders(call.headers)
+        incomingMessage: IncomingMessage
+    ): OutgoingMessage<Response<Resp, Err>> {
+        val request = incomingMessage.read(json, info.requestSerializer)
+        val metadata = metadataFromHttpHeaders(incomingMessage.headers)
 
         val response = interceptor?.intercept(info, request, metadata) { request, metadata ->
             handler(implementation, request, metadata)
         } ?: handler(implementation, request, metadata)
-        return EncodableMessage(response.metadata.toHttpHeaders(), response, info.responseSerializer, json)
+        return OutgoingMessage(response.metadata.toHttpHeaders(), response, info.responseSerializer, json)
     }
 
-    fun createGenericError(code: ErrorCode, message: String): EncodableMessage<*> {
-        return EncodableMessage(emptyMap(), Error(code, message), ResponseSerializer(Unit.serializer(), Unit.serializer()), json)
+    fun createGenericError(code: ErrorCode, message: String): OutgoingMessage<*> {
+        return OutgoingMessage(emptyMap(), Error(code, message), ResponseSerializer(Unit.serializer(), Unit.serializer()), json)
     }
 }
 

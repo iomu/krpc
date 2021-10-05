@@ -3,15 +3,9 @@ public class dev/jomu/krpc/runtime/BaseKrpcClient {
 	protected final fun executeUnaryCall (Ldev/jomu/krpc/runtime/MethodInfo;Ljava/lang/Object;Ldev/jomu/krpc/Metadata;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public abstract interface class dev/jomu/krpc/runtime/Call {
+public abstract interface class dev/jomu/krpc/runtime/IncomingMessage {
 	public abstract fun getHeaders ()Ljava/util/Map;
-	public abstract fun readRequest (Lkotlinx/serialization/json/Json;Lkotlinx/serialization/DeserializationStrategy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
-public final class dev/jomu/krpc/runtime/EncodableMessage {
-	public fun <init> (Ljava/util/Map;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Lkotlinx/serialization/json/Json;)V
-	public final fun encode (Ldev/jomu/krpc/runtime/JsonEncoder;)Ljava/lang/Object;
-	public final fun getHeaders ()Ljava/util/Map;
+	public abstract fun read (Lkotlinx/serialization/json/Json;Lkotlinx/serialization/DeserializationStrategy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface class dev/jomu/krpc/runtime/JsonEncoder {
@@ -19,11 +13,11 @@ public abstract interface class dev/jomu/krpc/runtime/JsonEncoder {
 }
 
 public abstract interface class dev/jomu/krpc/runtime/KrpcHttpClient {
-	public abstract fun post (Ljava/lang/String;Ldev/jomu/krpc/runtime/EncodableMessage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun post (Ljava/lang/String;Ldev/jomu/krpc/runtime/OutgoingMessage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface class dev/jomu/krpc/runtime/KrpcServer {
-	public abstract fun handleRequest (Ljava/lang/String;Ldev/jomu/krpc/runtime/Call;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun handleRequest (Ljava/lang/String;Ldev/jomu/krpc/runtime/IncomingMessage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class dev/jomu/krpc/runtime/KrpcServerBuilder {
@@ -43,6 +37,12 @@ public final class dev/jomu/krpc/runtime/MethodInfo {
 	public final fun getName ()Ljava/lang/String;
 	public final fun getRequestSerializer ()Lkotlinx/serialization/KSerializer;
 	public final fun getResponseSerializer ()Lkotlinx/serialization/KSerializer;
+}
+
+public final class dev/jomu/krpc/runtime/OutgoingMessage {
+	public fun <init> (Ljava/util/Map;Ljava/lang/Object;Lkotlinx/serialization/SerializationStrategy;Lkotlinx/serialization/json/Json;)V
+	public final fun getHeaders ()Ljava/util/Map;
+	public final fun write (Ldev/jomu/krpc/runtime/JsonEncoder;)Ljava/lang/Object;
 }
 
 public final class dev/jomu/krpc/runtime/ResponseSerializer : kotlinx/serialization/KSerializer {

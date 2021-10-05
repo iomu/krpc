@@ -9,7 +9,7 @@ import kotlinx.serialization.json.Json
 
 
 interface KrpcHttpClient {
-    suspend fun post(url: String, message: EncodableMessage<*>): Call
+    suspend fun post(url: String, message: OutgoingMessage<*>): IncomingMessage
 }
 
 open class BaseKrpcClient(
@@ -26,7 +26,7 @@ open class BaseKrpcClient(
         val url = "${baseUrl}/${info.path}"
 
         val execute: suspend (Req, Metadata) -> Response<Resp, Err> = { request, metadata ->
-            val message = EncodableMessage(
+            val message = OutgoingMessage(
                 metadata.toHttpHeaders(), request,
                 info.requestSerializer, json
             )
@@ -34,7 +34,7 @@ open class BaseKrpcClient(
 
             val metadata = metadataFromHttpHeaders(result.headers)
 
-            result.readRequest(json, info.responseSerializer).withMetadata(metadata)
+            result.read(json, info.responseSerializer).withMetadata(metadata)
         }
 
         return try {

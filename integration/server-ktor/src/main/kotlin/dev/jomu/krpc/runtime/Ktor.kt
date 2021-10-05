@@ -23,11 +23,11 @@ fun Routing.registerServer(server: KrpcServer, prefix: String = "") {
             "Not found",
             status = HttpStatusCode.NotFound
         )
-        val response = server.handleRequest(path, KtorCall(call))
+        val response = server.handleRequest(path, KtorIncomingMessage(call))
         response.headers.forEach { (key, value) -> call.response.header(key, value) }
 
         call.respondOutputStream {
-            response.encode(StreamEncoder(this))
+            response.write(StreamEncoder(this))
         }
     }
 }
@@ -40,9 +40,9 @@ private class StreamEncoder(val stream: OutputStream) : JsonEncoder<Unit> {
     }
 }
 
-private class KtorCall(val call: ApplicationCall) : Call {
+private class KtorIncomingMessage(val call: ApplicationCall) : IncomingMessage {
     @OptIn(ExperimentalSerializationApi::class)
-    override suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T {
+    override suspend fun <T> read(json: Json, deserializer: DeserializationStrategy<T>): T {
         return withContext(Dispatchers.IO) {
             call.receive<InputStream>()
                 .use { json.decodeFromStream(deserializer, it) }

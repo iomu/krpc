@@ -1,5 +1,5 @@
 public final class dev/jomu/krpc/runtime/OkHttpKrpcClient : dev/jomu/krpc/runtime/KrpcHttpClient {
 	public fun <init> (Lokhttp3/OkHttpClient;)V
-	public fun post (Ljava/lang/String;Ldev/jomu/krpc/runtime/EncodableMessage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun post (Ljava/lang/String;Ldev/jomu/krpc/runtime/OutgoingMessage;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 

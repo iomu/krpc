@@ -10,9 +10,9 @@ import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
 
 class KtorClient(private val client: HttpClient) : KrpcHttpClient {
-    override suspend fun post(url: String, message: EncodableMessage<*>): Call {
+    override suspend fun post(url: String, message: OutgoingMessage<*>): IncomingMessage {
         val response = client.post<HttpResponse>(url) {
-            body = message.encode(JsonStringEncoder)
+            body = message.write(JsonStringEncoder)
             headers {
                 message.headers.forEach { (key, value) ->
                     append(key, value)
@@ -20,12 +20,12 @@ class KtorClient(private val client: HttpClient) : KrpcHttpClient {
             }
         }
 
-        return ResponseCall(response)
+        return ResponseIncomingMessage(response)
     }
 }
 
-private class ResponseCall(val response: HttpResponse) : Call {
-    override suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T {
+private class ResponseIncomingMessage(val response: HttpResponse) : IncomingMessage {
+    override suspend fun <T> read(json: Json, deserializer: DeserializationStrategy<T>): T {
         return json.decodeFromString(deserializer, response.content.readRemaining().readText())
     }
 
