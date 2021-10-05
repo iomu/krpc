@@ -13,9 +13,8 @@ class MethodInfo<Req, Resp, Err>(
     val responseSerializer: KSerializer<Response<Resp, Err>>,
 )
 
-// TODO: naming
-interface Call {
-    suspend fun <T> readRequest(json: Json, deserializer: DeserializationStrategy<T>): T
+interface IncomingMessage {
+    suspend fun <T> read(json: Json, deserializer: DeserializationStrategy<T>): T
 
     val headers: Map<String, String>
 }
@@ -24,13 +23,13 @@ interface JsonEncoder<R> {
     fun <U> encode(json: Json, serializer: SerializationStrategy<U>, value: U): R
 }
 
-class EncodableMessage<T>(
+class OutgoingMessage<T>(
     val headers: Map<String, String>,
     private val value: T,
     private val serializer: SerializationStrategy<T>,
     private val json: Json
 ) {
-    fun <R> encode(encoder: JsonEncoder<R>): R {
+    fun <R> write(encoder: JsonEncoder<R>): R {
         return encoder.encode(json, serializer, value)
     }
 }
