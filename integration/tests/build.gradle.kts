@@ -17,9 +17,15 @@ dependencies {
     ksp(project(":compiler"))
 
     implementation(project(":integration:client-okhttp"))
+    implementation(project(":integration:client-ktor"))
+    implementation(libs.ktor.client.okhttp)
+    implementation(project(":integration:server-ktor"))
     implementation(project(":integration:server-okhttp-mock"))
 
-    testImplementation(kotlin("test"))
+    testImplementation(libs.ktor.server.test)
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.8.1")
+    testImplementation("com.willowtreeapps.assertk:assertk-jvm:0.25")
 }
 
 tasks.test {

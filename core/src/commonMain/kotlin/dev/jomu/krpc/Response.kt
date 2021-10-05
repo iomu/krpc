@@ -129,7 +129,7 @@ fun <T, E> Error(
     code: ErrorCode,
     message: String,
     details: E?,
-    metadata: Metadata,
+    metadata: Metadata = emptyMetadata(),
 ): Response.Error<T, E> = Response.Error(code, message, details, metadata)
 
 /**

@@ -1,12 +1,14 @@
 package dev.jomu.krpc.tests
 
-import dev.jomu.krpc.runtime.*
-import dev.jomu.krpc.*
-import kotlinx.coroutines.runBlocking
-import okhttp3.OkHttpClient
-import okhttp3.mockwebserver.MockWebServer
-import kotlin.test.Test
-import kotlin.test.assertEquals
+import assertk.assertThat
+import assertk.assertions.isEqualTo
+import dev.jomu.krpc.KrpcService
+import dev.jomu.krpc.Metadata
+import dev.jomu.krpc.Response
+import dev.jomu.krpc.Success
+import dev.jomu.krpc.runtime.buildKrpcServer
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ArgumentsSource
 
 @KrpcService
 interface EchoService {
@@ -15,7 +17,7 @@ interface EchoService {
 }
 
 internal class EchoTest {
-    val implementation = object : EchoService {
+    private val implementation = object : EchoService {
         override suspend fun echo(value: String): Response<String, Unit> {
             return Success(value)
         }
@@ -25,40 +27,37 @@ internal class EchoTest {
         }
     }
 
-    @Test
-    fun testEcho() {
-        testEchoService(implementation) { client ->
-            val request = "this is a nice test"
-            val response = client.echo(request)
-
-            assertEquals(Success(request), response)
-        }
-    }
-
-    @Test
-    fun testEchoMetadata() {
-        testEchoService(implementation) { client ->
-            val metadata = Metadata(mapOf("a" to "1", "b" to "2"))
-            val response = client.echoMetadata(metadata = metadata)
-
-            assertEquals(metadata, response.metadata)
-        }
-    }
-
-    private fun testEchoService(implementation: EchoService, block: suspend (client: EchoService) -> Unit) {
+    @ParameterizedTest
+    @ArgumentsSource(value = KrpcTestRunnerSource::class)
+    fun testEcho(runner: KrpcTestRunner) {
         val krpcServer = buildKrpcServer {
             registerEchoService(implementation)
         }
 
-        val dispatcher = KrpcDispatcher(krpcServer)
+        runner.runTest(krpcServer) { url, httpClient ->
+            val client = EchoServiceClient(httpClient, url)
 
-        val server = MockWebServer()
-        server.dispatcher = dispatcher
+            val request = "this is a nice test"
+            val response = client.echo(request)
 
-        val client = EchoServiceClient(OkHttpKrpcClient(OkHttpClient()), server.url("").toString())
+            assertThat(response).isEqualTo(Success(request))
+        }
+    }
 
-        runBlocking {
-            block(client)
+    @ParameterizedTest
+    @ArgumentsSource(value = KrpcTestRunnerSource::class)
+    fun testMetadata(runner: KrpcTestRunner) {
+        val krpcServer = buildKrpcServer {
+            registerEchoService(implementation)
+        }
+
+        runner.runTest(krpcServer) { url, httpClient ->
+            val client = EchoServiceClient(httpClient, url)
+
+            val metadata = Metadata(mapOf("a" to "1", "b" to "2"))
+            val response = client.echoMetadata(metadata = metadata)
+
+            assertThat(response.metadata).isEqualTo(metadata)
         }
     }
 }

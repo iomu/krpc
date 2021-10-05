@@ -11,18 +11,14 @@ import kotlin.test.assertEquals
 
 internal class Test {
     @Test
-    fun testStuff() {
-        assertEquals(1, 1)
-    }
-
-    @Test
-    fun testCompiler() {
+    fun `KrpcService inherits from generic interface`() {
         val source = """
             import dev.jomu.krpc.runtime.*
             
             interface Base<T> {
                 suspend fun test(x: T): Response<T, Unit>
             }
+
             @KrpcService
             interface TestService : Base<Int> {
                 suspend fun hello(name: String): Response<String, Unit>
@@ -39,13 +35,6 @@ internal class Test {
         }
         val result = compilation.compile()
 
-        val files = compilation.kspSourcesDir.list()
-    }
-
-    private fun Result.generatedClassFile(name: String): Class<*> {
-        val suffix = "$name.class"
-        val bytes = generatedFiles.single { it.endsWith(suffix) }.readBytes()
-        val cls = classLoader.loadClass(name)
-        return cls
+        assertEquals(result.exitCode, KotlinCompilation.ExitCode.OK)
     }
 }

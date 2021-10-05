@@ -57,6 +57,7 @@ public final class dev/jomu/krpc/Response$Success : dev/jomu/krpc/Response {
 
 public final class dev/jomu/krpc/ResponseKt {
 	public static final fun Error (Ldev/jomu/krpc/ErrorCode;Ljava/lang/String;Ljava/lang/Object;Ldev/jomu/krpc/Metadata;)Ldev/jomu/krpc/Response$Error;
+	public static synthetic fun Error$default (Ldev/jomu/krpc/ErrorCode;Ljava/lang/String;Ljava/lang/Object;Ldev/jomu/krpc/Metadata;ILjava/lang/Object;)Ldev/jomu/krpc/Response$Error;
 	public static final fun Success (Ljava/lang/Object;Ldev/jomu/krpc/Metadata;)Ldev/jomu/krpc/Response$Success;
 	public static synthetic fun Success$default (Ljava/lang/Object;Ldev/jomu/krpc/Metadata;ILjava/lang/Object;)Ldev/jomu/krpc/Response$Success;
 	public static final fun withMetadata (Ldev/jomu/krpc/Response;Ldev/jomu/krpc/Metadata;)Ldev/jomu/krpc/Response;
