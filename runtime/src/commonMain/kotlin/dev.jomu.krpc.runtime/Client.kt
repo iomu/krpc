@@ -7,11 +7,37 @@ import dev.jomu.krpc.Response
 import dev.jomu.krpc.withMetadata
 import kotlinx.serialization.json.Json
 
-
+/**
+ * A HTTP client that is used by [kRPC clients][BaseKrpcClient] to send messages to a kRPC service
+ */
 interface KrpcHttpClient {
+    /**
+     * Sends a POST HTTP request consisting of the encoded [OutgoingMessage] to the given URL
+     *
+     * @param url
+     * URL of the HTTP request
+     *
+     * @param message
+     * The encoded message should be sent as body of the HTTP request
+     *
+     * @return
+     * The response from the server
+     */
     suspend fun post(url: String, message: OutgoingMessage<*>): IncomingMessage
 }
 
+/**
+ * Base class for all generated kRPC clients
+ *
+ * @param client
+ * HTTP client to use
+ *
+ * @param baseUrl
+ * Base URL of the kRPC server
+ *
+ * @param interceptor
+ * [UnaryClientInterceptor] to use for all requests
+ */
 open class BaseKrpcClient(
     private val client: KrpcHttpClient,
     private val baseUrl: String,
