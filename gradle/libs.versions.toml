@@ -1,5 +1,5 @@
 [versions]
-binaryCompatability = "0.8.0"
+binaryCompatability = "0.16.3"
 coroutines = "1.5.2"
 ktor = "1.6.4"
 ksp = "1.5.31-1.0.0"
